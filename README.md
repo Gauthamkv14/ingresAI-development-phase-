@@ -203,12 +203,11 @@ npm start
 4. Review API documentation
 
 ## 📄 License
-
-MIT License - See LICENSE file for details
+-
 
 ## 👥 Contributors
 
-SIH 2025 Team - AI-Driven Chatbot for INGRES
+Team GroundZero - AI-Driven Chatbot for INGRES for SIH 25
 
 ## 🙏 Acknowledgments
 
