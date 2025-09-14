@@ -1,0 +1,87 @@
+# ---- Global ----
+*.DS_Store
+*.swp
+*.swo
+Thumbs.db
+
+# ---- Backend ----
+backend/__pycache__/
+backend/*.pyc
+backend/*.pyo
+backend/env/
+backend/.env
+backend/.env.*
+backend/.pytest_cache/
+backend/.vscode/
+backend/.mypy_cache/
+backend/.idea/
+backend/.coverage
+backend/coverage.xml
+backend/instance/
+backend/uploads/
+backend/data/
+backend/logs/
+backend/.ipynb_checkpoints/
+backend/*.sqlite3
+backend/*.db
+
+# Database
+postgres_data/
+redis_data/
+
+# ---- Frontend (React) ----
+frontend/node_modules/
+frontend/build/
+frontend/.env
+frontend/.env.*
+frontend/.DS_Store
+frontend/coverage/
+frontend/.next/
+frontend/.cache/
+frontend/yarn-error.log
+frontend/yarn.lock.backup
+
+# ---- Docker ----
+*.log
+*.pid
+docker-compose.override.yml
+*.tar
+
+# ---- Python ----
+*.egg-info/
+*.egg
+*.pkl
+*.bak
+
+# ---- General ----
+*.log
+*.tmp
+*.bak
+*.old
+*.orig
+*.rej
+
+# ---- IDEs and Editors ----
+.vscode/
+.idea/
+*.iml
+
+# ---- Misc ----
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+
+# ---- Test files ----
+test-output/
+coverage/
+htmlcov/
+.tox/
+nosetests.xml
+
+# ---- System files ----
+*.~lock.*
+~$*
+node_modules

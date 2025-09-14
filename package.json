@@ -1,0 +1,89 @@
+{
+  "name": "ingres-mcp-chatbot",
+  "version": "1.0.0",
+  "description": "AI-Driven Chatbot for INGRES (India Groundwater Resource Estimation System) - Smart India Hackathon 2025",
+  "main": "index.js",
+  "scripts": {
+    "install": "npm run install:backend && npm run install:frontend",
+    "install:backend": "cd backend && pip install -r requirements.txt",
+    "install:frontend": "cd frontend && npm install",
+    "start": "concurrently \"npm run start:backend\" \"npm run start:frontend\"",
+    "start:backend": "cd backend && python mcp_server.py",
+    "start:frontend": "cd frontend && npm start",
+    "start:api-bridge": "cd backend && python api_bridge.py",
+    "start:dev": "concurrently \"npm run start:backend\" \"npm run start:api-bridge\" \"npm run start:frontend\"",
+    "build": "npm run build:frontend",
+    "build:frontend": "cd frontend && npm run build",
+    "test": "npm run test:backend && npm run test:frontend",
+    "test:backend": "cd backend && python -m pytest tests/ -v",
+    "test:frontend": "cd frontend && npm test -- --coverage --watchAll=false",
+    "lint": "npm run lint:frontend",
+    "lint:frontend": "cd frontend && npm run lint",
+    "format": "npm run format:frontend",
+    "format:frontend": "cd frontend && npm run format",
+    "docker:build": "docker-compose build",
+    "docker:up": "docker-compose up --build",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "docker:clean": "docker-compose down -v --remove-orphans",
+    "setup": "chmod +x setup.sh && ./setup.sh",
+    "dev": "./start_dev.sh",
+    "prod": "./start_all_docker.sh",
+    "db:init": "docker-compose up -d postgres && sleep 10 && docker-compose exec postgres psql -U postgres -d ingres_db -f /docker-entrypoint-initdb.d/01-init.sql",
+    "db:reset": "docker-compose down postgres && docker volume rm ingres-mcp-chatbot_postgres_data && npm run db:init",
+    "backup:db": "docker-compose exec postgres pg_dump -U postgres ingres_db > backup_$(date +%Y%m%d_%H%M%S).sql",
+    "clean": "rm -rf node_modules backend/venv frontend/node_modules backend/__pycache__ */__pycache__ */logs/*.log",
+    "health": "curl -f http://localhost:8000/health && curl -f http://localhost:3000"
+  },
+  "keywords": [
+    "sih2025",
+    "smart-india-hackathon",
+    "ingres",
+    "groundwater",
+    "chatbot",
+    "mcp",
+    "ai",
+    "machine-learning",
+    "react",
+    "python",
+    "postgis",
+    "spatial-data",
+    "india",
+    "water-resources",
+    "cgwb",
+    "data-gov-in",
+    "openai",
+    "rag",
+    "langchain"
+  ],
+  "author": {
+    "name": "SIH 2025 Team",
+    "email": "team@sih2025.example.com"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yourusername/ingres-mcp-chatbot.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/ingres-mcp-chatbot/issues"
+  },
+  "homepage": "https://github.com/yourusername/ingres-mcp-chatbot#readme",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0",
+    "python": ">=3.11.0"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "nodemon": "^3.0.2"
+  },
+  "optionalDependencies": {
+    "fsevents": "*"
+  },
+  "private": false,
+  "workspaces": [
+    "frontend"
+  ]
+}
+
