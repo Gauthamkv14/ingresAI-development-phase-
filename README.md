@@ -219,7 +219,7 @@ SIH 2025 Team - AI-Driven Chatbot for INGRES
 
 ## 📞 Support & Contact
 
-- **Email:** team@sih2025.example.com
+- **Email:** gauthamkv14@gmail.com
 - **Documentation:** [Wiki](../../wiki)
 
 ---
