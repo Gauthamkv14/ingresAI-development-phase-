@@ -1,21 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import createPlotlyComponent from 'react-plotly.js/factory';
+import React, { useState, useEffect, useRef } from 'react';
+import Plot from 'react-plotly.js';
 import Plotly from 'plotly.js-dist-min';
 import { motion } from 'framer-motion';
-import { 
-  BarChart3, 
-  LineChart, 
-  PieChart, 
-  TrendingUp, 
+import {
+  BarChart3,
+  LineChart,
+  PieChart,
+  TrendingUp,
   Download,
-  Settings,
   RefreshCw
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useMCP } from '../contexts/MCPContext';
 import { toast } from 'react-toastify';
-
-const Plot = createPlotlyComponent(Plotly);
 
 const Charts = ({ data = [], onCreateChart }) => {
   const [chartType, setChartType] = useState('bar');
@@ -26,8 +23,10 @@ const Charts = ({ data = [], onCreateChart }) => {
   const [loading, setLoading] = useState(false);
   const [hoveredPoint, setHoveredPoint] = useState(null);
 
-  const { translate } = useLanguage();
-  const { callTool } = useMCP();
+  const plotRef = useRef(null); // store Plotly graph div
+
+  const { translate } = useLanguage ? useLanguage() : { translate: (s)=>s }; // fallback
+  const { callTool } = useMCP ? useMCP() : {};
 
   // Get available fields from data
   const availableFields = data.length > 0 ? Object.keys(data[0]) : [];
@@ -40,13 +39,12 @@ const Charts = ({ data = [], onCreateChart }) => {
 
   useEffect(() => {
     if (data.length > 0 && !selectedXField) {
-      // Auto-select reasonable defaults
-      const defaultX = categoricalFields.find(field => 
+      const defaultX = categoricalFields.find(field =>
         ['state', 'district', 'category', 'year'].includes(field)
       ) || categoricalFields[0];
-      
-      const defaultY = numericFields.find(field => 
-        ['water_level', 'extraction', 'recharge'].includes(field)
+
+      const defaultY = numericFields.find(field =>
+        ['water_level', 'extraction', 'recharge', 'level'].includes(field)
       ) || numericFields[0];
 
       setSelectedXField(defaultX || '');
@@ -58,7 +56,6 @@ const Charts = ({ data = [], onCreateChart }) => {
     if (selectedXField && selectedYField && data.length > 0) {
       generateChartData();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chartType, selectedXField, selectedYField, groupByField, data]);
 
   const generateChartData = () => {
@@ -66,17 +63,16 @@ const Charts = ({ data = [], onCreateChart }) => {
 
     setLoading(true);
     try {
-      let processedData = [...data].filter(item => 
-        item[selectedXField] !== null && 
+      let processedData = [...data].filter(item =>
+        item[selectedXField] !== null &&
         item[selectedXField] !== undefined &&
-        item[selectedYField] !== null && 
+        item[selectedYField] !== null &&
         item[selectedYField] !== undefined
       );
 
       if (groupByField) {
-        // Group data by the specified field
         const grouped = processedData.reduce((acc, item) => {
-          const groupKey = item[groupByField];
+          const groupKey = item[groupByField] || 'Unknown';
           if (!acc[groupKey]) acc[groupKey] = [];
           acc[groupKey].push(item);
           return acc;
@@ -84,33 +80,27 @@ const Charts = ({ data = [], onCreateChart }) => {
 
         const traces = Object.keys(grouped).map(groupKey => {
           const groupData = grouped[groupKey];
-          
+
           if (chartType === 'bar') {
             const xValues = groupData.map(item => item[selectedXField]);
             const yValues = groupData.map(item => item[selectedYField]);
-            
             return {
               x: xValues,
               y: yValues,
               name: groupKey,
               type: 'bar',
-              hovertemplate: `<b>${selectedXField}:</b> %{x}<br>` +
-                           `<b>${selectedYField}:</b> %{y}<br>` +
-                           `<b>${groupByField}:</b> ${groupKey}<extra></extra>`
+              hovertemplate: `<b>${selectedXField}:</b> %{x}<br><b>${selectedYField}:</b> %{y}<br><b>${groupByField}:</b> ${groupKey}<extra></extra>`
             };
           } else if (chartType === 'line') {
             const xValues = groupData.map(item => item[selectedXField]);
             const yValues = groupData.map(item => item[selectedYField]);
-            
             return {
               x: xValues,
               y: yValues,
               name: groupKey,
               type: 'scatter',
               mode: 'lines+markers',
-              hovertemplate: `<b>${selectedXField}:</b> %{x}<br>` +
-                           `<b>${selectedYField}:</b> %{y}<br>` +
-                           `<b>${groupByField}:</b> ${groupKey}<extra></extra>`
+              hovertemplate: `<b>${selectedXField}:</b> %{x}<br><b>${selectedYField}:</b> %{y}<br><b>${groupByField}:</b> ${groupKey}<extra></extra>`
             };
           }
           return null;
@@ -126,9 +116,7 @@ const Charts = ({ data = [], onCreateChart }) => {
           }
         });
       } else {
-        // Single trace
         if (chartType === 'bar') {
-          // Aggregate data for bar chart
           const aggregated = processedData.reduce((acc, item) => {
             const key = item[selectedXField];
             if (!acc[key]) {
@@ -142,7 +130,7 @@ const Charts = ({ data = [], onCreateChart }) => {
 
           const xValues = Object.keys(aggregated);
           const yValues = xValues.map(key => aggregated[key].sum / aggregated[key].count);
-          
+
           setChartData({
             data: [{
               x: xValues,
@@ -152,9 +140,7 @@ const Charts = ({ data = [], onCreateChart }) => {
                 color: '#3B82F6',
                 opacity: 0.8
               },
-              hovertemplate: `<b>${selectedXField}:</b> %{x}<br>` +
-                           `<b>Average ${selectedYField}:</b> %{y:.2f}<br>` +
-                           `<b>Data Points:</b> ${xValues.map(key => aggregated[key].count).join(', ')}<extra></extra>`
+              hovertemplate: `<b>${selectedXField}:</b> %{x}<br><b>Average ${selectedYField}:</b> %{y:.2f}<br><extra></extra>`
             }],
             layout: {
               title: `Average ${selectedYField} by ${selectedXField}`,
@@ -166,7 +152,7 @@ const Charts = ({ data = [], onCreateChart }) => {
         } else if (chartType === 'line') {
           const xValues = processedData.map(item => item[selectedXField]);
           const yValues = processedData.map(item => item[selectedYField]);
-          
+
           setChartData({
             data: [{
               x: xValues,
@@ -175,8 +161,7 @@ const Charts = ({ data = [], onCreateChart }) => {
               mode: 'lines+markers',
               marker: { color: '#3B82F6' },
               line: { color: '#3B82F6' },
-              hovertemplate: `<b>${selectedXField}:</b> %{x}<br>` +
-                           `<b>${selectedYField}:</b> %{y}<extra></extra>`
+              hovertemplate: `<b>${selectedXField}:</b> %{x}<br><b>${selectedYField}:</b> %{y}<extra></extra>`
             }],
             layout: {
               title: `${selectedYField} vs ${selectedXField}`,
@@ -188,10 +173,10 @@ const Charts = ({ data = [], onCreateChart }) => {
         } else if (chartType === 'scatter') {
           const xValues = processedData.map(item => item[selectedXField]);
           const yValues = processedData.map(item => item[selectedYField]);
-          const textValues = processedData.map(item => 
+          const textValues = processedData.map(item =>
             `${item.district || ''} ${item.state || ''}`
           );
-          
+
           setChartData({
             data: [{
               x: xValues,
@@ -199,14 +184,12 @@ const Charts = ({ data = [], onCreateChart }) => {
               text: textValues,
               type: 'scatter',
               mode: 'markers',
-              marker: { 
+              marker: {
                 color: '#3B82F6',
                 size: 8,
                 opacity: 0.7
               },
-              hovertemplate: `<b>${selectedXField}:</b> %{x}<br>` +
-                           `<b>${selectedYField}:</b> %{y}<br>` +
-                           `<b>Location:</b> %{text}<extra></extra>`
+              hovertemplate: `<b>${selectedXField}:</b> %{x}<br><b>${selectedYField}:</b> %{y}<br><b>Location:</b> %{text}<extra></extra>`
             }],
             layout: {
               title: `${selectedYField} vs ${selectedXField}`,
@@ -216,7 +199,6 @@ const Charts = ({ data = [], onCreateChart }) => {
             }
           });
         } else if (chartType === 'pie') {
-          // For pie chart, use categorical field for labels
           const categoryField = categoricalFields.includes(selectedXField) ? selectedXField : 'category';
           const counts = processedData.reduce((acc, item) => {
             const key = item[categoryField] || 'Unknown';
@@ -226,14 +208,13 @@ const Charts = ({ data = [], onCreateChart }) => {
 
           const labels = Object.keys(counts);
           const values = Object.values(counts);
-          
+
           setChartData({
             data: [{
               labels: labels,
               values: values,
               type: 'pie',
-              hovertemplate: `<b>%{label}:</b> %{value} records<br>` +
-                           `<b>Percentage:</b> %{percent}<extra></extra>`
+              hovertemplate: `<b>%{label}:</b> %{value} records<br><b>Percentage:</b> %{percent}<extra></extra>`
             }],
             layout: {
               title: `Distribution of ${categoryField}`,
@@ -267,25 +248,21 @@ const Charts = ({ data = [], onCreateChart }) => {
   };
 
   const exportChart = () => {
-    if (chartData) {
-      // Use Plotly's built-in export functionality
-      const element = document.querySelector('.js-plotly-plot');
-      if (element) {
-        try {
-          Plotly.downloadImage(element, {
-            format: 'png',
-            width: 1200,
-            height: 800,
-            filename: `ingres_chart_${chartType}_${Date.now()}`
-          });
-          toast.success('Chart exported successfully');
-        } catch (error) {
-          console.error('Export failed', error);
-          toast.error('Failed to export chart');
-        }
-      } else {
-        toast.error('Plot element not found');
+    if (plotRef.current) {
+      try {
+        Plotly.downloadImage(plotRef.current, {
+          format: 'png',
+          width: 1200,
+          height: 800,
+          filename: `ingres_chart_${chartType}_${Date.now()}`
+        });
+        toast.success('Chart exported successfully');
+      } catch (err) {
+        console.error('Export failed', err);
+        toast.error('Export failed');
       }
+    } else {
+      toast.error('No chart to export');
     }
   };
 
@@ -307,19 +284,19 @@ const Charts = ({ data = [], onCreateChart }) => {
   }
 
   return (
-    <div className="h-full flex flex-col bg-white rounded-lg shadow">
+    <div className="h-full flex flex-col bg-white dark:bg-slate-800 rounded-lg shadow">
       {/* Chart Controls */}
-      <div className="p-4 border-b border-gray-200">
+      <div className="p-4 border-b border-gray-200 dark:border-slate-700">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           {/* Chart Type Selector */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
               {translate('Chart Type')}
             </label>
             <select
               value={chartType}
               onChange={(e) => setChartType(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md"
             >
               {chartTypeOptions.map(option => (
                 <option key={option.value} value={option.value}>
@@ -331,13 +308,13 @@ const Charts = ({ data = [], onCreateChart }) => {
 
           {/* X-Axis Field */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
               {translate('X-Axis')}
             </label>
             <select
               value={selectedXField}
               onChange={(e) => setSelectedXField(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md"
             >
               <option value="">{translate('Select field')}</option>
               {categoricalFields.map(field => (
@@ -350,13 +327,13 @@ const Charts = ({ data = [], onCreateChart }) => {
 
           {/* Y-Axis Field */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
               {translate('Y-Axis')}
             </label>
             <select
               value={selectedYField}
               onChange={(e) => setSelectedYField(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md"
             >
               <option value="">{translate('Select field')}</option>
               {numericFields.map(field => (
@@ -369,13 +346,13 @@ const Charts = ({ data = [], onCreateChart }) => {
 
           {/* Group By Field */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
               {translate('Group By')} ({translate('Optional')})
             </label>
             <select
               value={groupByField}
               onChange={(e) => setGroupByField(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md"
             >
               <option value="">{translate('No grouping')}</option>
               {categoricalFields.map(field => (
@@ -391,16 +368,16 @@ const Charts = ({ data = [], onCreateChart }) => {
             <button
               onClick={generateChartData}
               disabled={loading || !selectedXField || !selectedYField}
-              className="flex items-center gap-2 px-3 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-3 py-2 bg-primary-600 text-white rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               {translate('Update')}
             </button>
-            
+
             <button
               onClick={exportChart}
               disabled={!chartData}
-              className="flex items-center gap-2 px-3 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-3 py-2 bg-gray-600 text-white rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Download className="w-4 h-4" />
               {translate('Export')}
@@ -416,7 +393,7 @@ const Charts = ({ data = [], onCreateChart }) => {
             <RefreshCw className="w-8 h-8 animate-spin text-primary-600" />
           </div>
         )}
-        
+
         {chartData && !loading && (
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
@@ -444,6 +421,8 @@ const Charts = ({ data = [], onCreateChart }) => {
               style={{ width: '100%', height: '100%' }}
               onHover={handlePlotHover}
               onUnhover={handlePlotUnhover}
+              onInitialized={(figure, graphDiv) => { plotRef.current = graphDiv; }}
+              onUpdate={(figure, graphDiv) => { plotRef.current = graphDiv; }}
             />
           </motion.div>
         )}
@@ -463,9 +442,9 @@ const Charts = ({ data = [], onCreateChart }) => {
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="absolute bottom-4 right-4 bg-white p-4 rounded-lg shadow-lg border border-gray-200 max-w-sm"
+          className="absolute bottom-4 right-4 bg-white dark:bg-slate-700 p-4 rounded-lg shadow-lg border border-gray-200 dark:border-slate-600 max-w-sm"
         >
-          <h4 className="font-semibold text-gray-900 mb-2">
+          <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">
             {translate('Data Point Details')}
           </h4>
           <div className="text-sm space-y-1">
