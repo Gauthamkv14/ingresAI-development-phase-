@@ -19,6 +19,7 @@ backend/.coverage
 backend/coverage.xml
 backend/instance/
 backend/uploads/
+
 backend/logs/
 backend/.ipynb_checkpoints/
 backend/*.sqlite3
