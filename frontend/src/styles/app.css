@@ -1,0 +1,70 @@
+/* frontend/src/styles/app.css */
+:root {
+  --sidebar-w: 220px;
+  --primary: #6d28d9;
+  --muted: #f3f4f6;
+}
+
+/* Layout */
+.app-layout {
+  display: flex;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #6d28d9 0%, #7c3aed 50%, #a78bfa 100%);
+  color: #111827;
+}
+
+.sidebar {
+  width: var(--sidebar-w);
+  background: #ffffff;
+  padding: 20px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.12);
+}
+
+.sidebar .logo {
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: var(--primary);
+  margin-bottom: 12px;
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sidebar-nav .nav-item {
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: #333;
+  text-decoration: none;
+}
+.sidebar-nav .nav-item:hover {
+  background: var(--muted);
+}
+
+.main-content {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+/* Home/Dashboard cards */
+.card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.06);
+}
+
+.large { min-height: 320px; }
+
+/* Chat quick styles (ChatInterface uses its own CSS but some generic) */
+.message { padding: 10px 12px; margin-bottom: 6px; border-radius: 8px; max-width: 80%; }
+.message.user { background: #e6f0ff; margin-left: auto; }
+.message.bot { background: #f3f4f6; margin-right: auto; }
+
+/* small input */
+input[type="text"], input[type="search"], input {
+  padding: 8px 12px; border-radius: 8px; border: 1px solid #e5e7eb;
+}

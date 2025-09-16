@@ -2,28 +2,26 @@
 import os
 import time
 import json
-from typing import Dict, List
+import re
+from typing import Dict, List, Any
 from difflib import get_close_matches
 
 import pandas as pd
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 
-# Redis optional
+# optional redis
 try:
     import redis
 except Exception:
     redis = None
 
-# Defaults (can be overridden by env)
 ENV_INGRIS_CSV = os.environ.get("INGRIS_CSV", "")
 ENV_GEOJSON = os.environ.get("INGRIS_GEOJSON", "")
 REDIS_HOST = os.environ.get("REDIS_HOST", "redis")
 REDIS_PORT = int(os.environ.get("REDIS_PORT", 6379))
 REDIS_DB = int(os.environ.get("REDIS_DB", 0))
 
-# columns used exactly as in CSV
 AGG_COLS = [
     "Annual Extractable Ground water Resource (ham)_C",
     "Net Annual Ground Water Availability for Future Use (ham)_C",
@@ -31,11 +29,11 @@ AGG_COLS = [
     "Total Ground Water Availability in the area (ham)_Fresh",
 ]
 
-app = FastAPI(title="IngresAI Backend (updated startup)")
+app = FastAPI(title="IngresAI Backend")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # for development; change in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -44,7 +42,7 @@ app.add_middleware(
 _local_cache = {}
 redis_client = None
 
-# Try to connect to redis (non-fatal). If redis package missing or host unreachable, fallback silently.
+# Try connect to Redis (non-fatal)
 if redis:
     for attempt in range(3):
         try:
@@ -53,15 +51,15 @@ if redis:
                 print(f"[INFO] Connected to Redis at {REDIS_HOST}:{REDIS_PORT}")
                 break
         except Exception as e:
-            print(f"[WARN] Redis connection attempt {attempt+1} failed: {e}")
+            print(f"[WARN] Redis attempt {attempt+1} failed: {e}")
             time.sleep(1)
     else:
-        print("[WARN] Redis unreachable — using in-memory cache fallback.")
+        print("[WARN] Redis unreachable - using in-memory cache.")
 else:
-    print("[WARN] redis-py not installed; Redis disabled (in-memory cache will be used).")
+    print("[WARN] redis library not installed; skipping Redis (in-memory cache will be used).")
 
 
-def cache_set(key: str, value, ttl: int = 3600):
+def cache_set(key: str, value: Any, ttl: int = 3600):
     if redis_client:
         try:
             redis_client.setex(key, ttl, json.dumps(value, default=str))
@@ -90,33 +88,23 @@ def cache_get(key: str):
     return value
 
 
-def find_existing_file_candidates() -> Dict[str, str]:
-    """
-    Try multiple candidate paths for CSV and geojson and return the first found.
-    """
+def find_existing_file_candidates() -> Dict[str, List[str]]:
     root = os.path.abspath(os.getcwd())
-    # Build list of candidate CSV paths
-    candidates = []
-    # explicit env path first
+    csv_candidates = []
     if ENV_INGRIS_CSV:
-        candidates.append(ENV_INGRIS_CSV)
-    # common locations relative to working directory and repository layout
-    candidates += [
+        csv_candidates.append(ENV_INGRIS_CSV)
+    csv_candidates += [
         os.path.join(root, "data", "ingris_report.csv"),
         os.path.join(root, "backend", "data", "ingris_report.csv"),
         os.path.join(root, "backend", "ingris_report.csv"),
         os.path.join(root, "ingris_report.csv"),
         os.path.join(root, "..", "data", "ingris_report.csv"),
     ]
-    # dedupe but preserve order
-    seen = set()
-    csv_candidates = []
-    for p in candidates:
-        if p not in seen:
-            seen.add(p)
-            csv_candidates.append(p)
+    seen = set(); csv_list = []
+    for p in csv_candidates:
+        if p and p not in seen:
+            seen.add(p); csv_list.append(p)
 
-    # GEOJSON candidates
     geo_candidates = []
     if ENV_GEOJSON:
         geo_candidates.append(ENV_GEOJSON)
@@ -124,25 +112,20 @@ def find_existing_file_candidates() -> Dict[str, str]:
         os.path.join(root, "data", "india_districts.geojson"),
         os.path.join(root, "backend", "data", "india_districts.geojson"),
         os.path.join(root, "data", "india_states.geojson"),
-        os.path.join(root, "backend", "data", "india_districts.geojson"),
+        os.path.join(root, "backend", "data", "india_states.geojson"),
         os.path.join(root, "india_districts.geojson"),
     ]
-    geo_seen = set()
-    geo_candidates_unique = []
+    seeng = set(); geo_list = []
     for p in geo_candidates:
-        if p not in geo_seen:
-            geo_seen.add(p)
-            geo_candidates_unique.append(p)
+        if p and p not in seeng:
+            seeng.add(p); geo_list.append(p)
 
-    return {"csv": csv_candidates, "geo": geo_candidates_unique}
+    return {"csv": csv_list, "geo": geo_list}
 
 
 @app.on_event("startup")
 def startup_load_files():
-    """
-    Load CSV and geojson; if not found, raise an informative error listing tried paths.
-    """
-    global df, states_list, geojson_data
+    global df, states_list, geojson_data, normalized_to_canonical
     candidates = find_existing_file_candidates()
     csv_path = None
     for p in candidates["csv"]:
@@ -150,34 +133,49 @@ def startup_load_files():
             csv_path = p
             break
     if not csv_path:
-        # informative error listing checked paths
-        msg = (
-            "CSV file not found. Checked the following locations:\n" +
-            "\n".join(candidates["csv"]) +
-            "\n\nTo fix: place ingris_report.csv in one of these paths OR set environment variable INGRIS_CSV to the absolute path.\n"
-            "Example (PowerShell): $env:INGRIS_CSV='C:\\full\\path\\to\\ingris_report.csv'; uvicorn app:app --reload\n"
-            "Or (Linux/macOS): export INGRIS_CSV=/full/path/ingris_report.csv; uvicorn app:app --reload\n"
-        )
+        msg = "CSV file not found. Checked:\n" + "\n".join(candidates["csv"]) + \
+              "\nSet INGRIS_CSV env var to the CSV's absolute path or place it in one of the above locations."
         print("[ERROR]", msg)
         raise RuntimeError(msg)
 
-    # load the CSV
     print(f"[INFO] Loading CSV from: {csv_path}")
     df = pd.read_csv(csv_path, low_memory=False)
     df.columns = [c.strip() for c in df.columns]
-    # try rename possible variant columns
+
+    # canonicalize column names commonly present in this CSV
     if 'STATE' not in df.columns and 'State/UT' in df.columns:
         df.rename(columns={'State/UT': 'STATE'}, inplace=True)
     if 'DISTRICT' not in df.columns and 'District' in df.columns:
         df.rename(columns={'District': 'DISTRICT'}, inplace=True)
+
+    # ensure strings and strip whitespace
     if 'STATE' in df.columns:
         df['STATE'] = df['STATE'].astype(str).str.strip()
     if 'DISTRICT' in df.columns:
         df['DISTRICT'] = df['DISTRICT'].astype(str).str.strip()
-    states_list = sorted(df['STATE'].dropna().unique().tolist())
-    print(f"[INFO] CSV loaded: {len(df)} rows, {len(states_list)} unique states.")
 
-    # geojson optional
+    # filter out empty/nan-like states
+    df = df[df['STATE'].notna() & (df['STATE'].astype(str).str.strip() != '')]
+
+    # Build a canonical mapping and normalized keys to match text user input robustly
+    states_unique = sorted(df['STATE'].dropna().unique().tolist())
+
+    def normalize_key(name: str) -> str:
+        # Uppercase and remove non-alphanumeric (including spaces)
+        if not isinstance(name, str): return ""
+        return re.sub(r'[^A-Z0-9]', '', name.upper())
+
+    normalized_to_canonical = {}
+    for s in states_unique:
+        key = normalize_key(str(s))
+        normalized_to_canonical[key] = s  # keep original string as canonical display
+
+    # store states_list (canonical)
+    states_list = [normalized_to_canonical[k] for k in sorted(normalized_to_canonical.keys())]
+
+    print(f"[INFO] CSV loaded: {len(df)} rows, {len(states_list)} states")
+
+    # geojson
     geojson_data = None
     geo_path = None
     for p in candidates["geo"]:
@@ -190,23 +188,34 @@ def startup_load_files():
                 geojson_data = json.load(fh)
             print(f"[INFO] GeoJSON loaded from: {geo_path}")
         except Exception as e:
-            print(f"[WARN] Failed to load geojson at {geo_path}: {e}")
+            print("[WARN] Failed to load geojson:", e)
             geojson_data = None
     else:
-        print("[WARN] GeoJSON not found in checked locations; /api/geojson will return 404.")
+        print("[WARN] GeoJSON not found; map endpoint will return 404.")
+
+
+def normalize_text_key(s: str) -> str:
+    if not s:
+        return ""
+    return re.sub(r'[^A-Z0-9]', '', s.upper())
 
 
 def find_state_in_text(text: str) -> str:
-    text_up = text.upper()
-    for st in states_list:
-        if st.upper() in text_up:
-            return st
-    tokens = [t.strip() for t in text.split() if len(t) > 2]
-    for t in tokens:
-        matches = get_close_matches(t.upper(), [s.upper() for s in states_list], n=1, cutoff=0.8)
+    if not text:
+        return None
+    # normalize user text and check if any canonical key is substring
+    tkey = normalize_text_key(text)
+    # direct substring match (handles multi-word inputs)
+    for nkey, canon in normalized_to_canonical.items():
+        if nkey in tkey:
+            return canon
+    # token fuzzy match - try tokens against normalized keys with difflib
+    tokens = [re.sub(r'[^A-Za-z0-9]', '', tok).upper() for tok in text.split() if len(tok) > 2]
+    keys = list(normalized_to_canonical.keys())
+    for tok in tokens:
+        matches = get_close_matches(tok, keys, n=1, cutoff=0.8)
         if matches:
-            idx = [s.upper() for s in states_list].index(matches[0])
-            return states_list[idx]
+            return normalized_to_canonical[matches[0]]
     return None
 
 
@@ -238,33 +247,54 @@ def aggregate_state_districts(state_name: str) -> List[Dict]:
     sub = df[df['STATE'].str.upper() == state_name.upper()]
     if sub.empty:
         raise KeyError("State not found")
-    group = sub.groupby('DISTRICT')
     rows = []
-    for district, g in group:
+    for district, g in sub.groupby('DISTRICT'):
         entry = {'district': district}
         for col in AGG_COLS:
-            if col in g.columns:
-                entry[col] = float(pd.to_numeric(g[col], errors='coerce').fillna(0.0).sum())
-            else:
-                entry[col] = None
+            entry[col] = float(pd.to_numeric(g[col], errors='coerce').fillna(0.0).sum()) if col in g.columns else None
         rows.append(entry)
     cache_set(key, rows, ttl=3600)
     return rows
 
 
-class ChatRequest(BaseModel):
-    query: str
-
-
 @app.post("/api/chat")
-def chat(req: ChatRequest):
-    text = req.query.strip()
-    state = find_state_in_text(text)
-    if state:
+async def chat_endpoint(request: Request):
+    # The backend will accept JSON payloads (query/message/text) or form body or raw string
+    payload = {}
+    try:
+        payload = await request.json()
+        if not isinstance(payload, dict):
+            payload = {}
+    except Exception:
         try:
-            ag = aggregate_state(state)
-        except KeyError:
-            raise HTTPException(status_code=404, detail="State not found")
+            form = await request.form()
+            payload = dict(form)
+        except Exception:
+            payload = {}
+
+    # accept several key names
+    query = None
+    if isinstance(payload, dict):
+        for key in ("query", "message", "text", "q"):
+            if key in payload:
+                query = payload.get(key)
+                break
+
+    if not query:
+        raw = await request.body()
+        try:
+            raw_s = raw.decode('utf-8').strip()
+            if raw_s:
+                query = raw_s
+        except Exception:
+            query = None
+
+    if not query:
+        raise HTTPException(status_code=422, detail="No 'query' provided in request body. Send JSON: {\"query\":\"...\"}")
+
+    state = find_state_in_text(str(query))
+    if state:
+        ag = aggregate_state(state)
         field = "Total Ground Water Availability in the area (ham)_Fresh"
         value = ag.get(field, 0.0)
         return {
@@ -276,9 +306,9 @@ def chat(req: ChatRequest):
             "explanation": f"Sum of '{field}' across all districts in {state} is {value:.2f} ham."
         }
 
-    if any(k in text.lower() for k in ["list states", "what states", "states available", "which states"]):
+    if any(k in str(query).lower() for k in ["list states", "what states", "states available", "which states"]):
         return {"intent": "list_states", "states": states_list}
-    return {"intent": "none", "answer": "I couldn't find a state in your question. Try: 'Show me Tamil Nadu groundwater data'."}
+    return {"intent": "none", "answer": "Could not detect a state. Try: 'Show me Tamil Nadu groundwater data'."}
 
 
 @app.get("/api/states")
@@ -326,7 +356,7 @@ def overview():
         return cached
     total_points = int(df.shape[0])
     field = "Total Ground Water Availability in the area (ham)_Fresh"
-    vals = pd.to_numeric(df[field], errors='coerce').fillna(0)
+    vals = pd.to_numeric(df.get(field, pd.Series([0]*len(df))), errors='coerce').fillna(0)
     safe = int((vals > 15000).sum())
     moderate = int(((vals > 10000) & (vals <= 15000)).sum())
     critical = int((vals <= 10000).sum())

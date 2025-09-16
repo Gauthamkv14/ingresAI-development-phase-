@@ -1,0 +1,8 @@
+/* frontend/src/styles/chatinterface.css */
+.chat-interface { display:flex; flex-direction:column; height:100%; }
+.chat-messages { padding:12px; flex:1; overflow:auto; background:#fafafa; }
+.chat-input { display:flex; gap:8px; padding:8px; border-top:1px solid #eee; }
+.chat-input input { flex:1; padding:8px 10px; border-radius:8px; border:1px solid #ddd; }
+.chat-input button { background:var(--primary); color:white; border:none; padding:8px 10px; border-radius:8px; cursor:pointer; }
+.message.user { background:#e6f0ff; margin-left:auto; margin-bottom:6px; padding:8px; border-radius:8px; }
+.message.bot { background:#fff; margin-right:auto; margin-bottom:6px; padding:8px; border-radius:8px; }

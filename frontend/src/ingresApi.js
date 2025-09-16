@@ -1,7 +1,10 @@
-// src/api/ingresApi.js
 import axios from "axios";
 
-const BASE = process.env.REACT_APP_API_BASE || "http://localhost:8000";
+// Support both REACT_APP_API_BASE and REACT_APP_API_URL env vars
+const BASE =
+  process.env.REACT_APP_API_BASE ||
+  process.env.REACT_APP_API_URL ||
+  (window._INGRES_API_BASE || "http://localhost:8000");
 
 export async function getStatesOverview() {
   const res = await axios.get(`${BASE}/api/states`);
@@ -9,12 +12,16 @@ export async function getStatesOverview() {
 }
 
 export async function getStateAggregate(stateName) {
-  const res = await axios.get(`${BASE}/api/state/${encodeURIComponent(stateName)}`);
+  const res = await axios.get(
+    `${BASE}/api/state/${encodeURIComponent(stateName)}`
+  );
   return res.data;
 }
 
 export async function getStateDistricts(stateName) {
-  const res = await axios.get(`${BASE}/api/state/${encodeURIComponent(stateName)}/districts`);
+  const res = await axios.get(
+    `${BASE}/api/state/${encodeURIComponent(stateName)}/districts`
+  );
   return res.data;
 }
 
@@ -24,8 +31,12 @@ export async function getOverview() {
 }
 
 export async function postChat(queryText) {
-  // backend expects JSON: { "query": "..." }
-  const res = await axios.post(`${BASE}/api/chat`, { query: queryText });
+  // Always send JSON with { query: ... }
+  const res = await axios.post(
+    `${BASE}/api/chat`,
+    { query: queryText },
+    { headers: { "Content-Type": "application/json" } }
+  );
   return res.data;
 }
 
@@ -33,3 +44,4 @@ export async function getGeojson() {
   const res = await axios.get(`${BASE}/api/geojson`);
   return res.data;
 }
+

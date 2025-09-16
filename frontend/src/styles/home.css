@@ -1,0 +1,50 @@
+/* frontend/src/styles/home.css */
+.home-page {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.home-hero {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  background: linear-gradient(90deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+  padding: 20px;
+  border-radius: 12px;
+}
+
+.hero-left h1 {
+  margin: 0;
+  font-size: 28px;
+  color: #fff;
+}
+
+.hero-left p {
+  margin: 4px 0 0 0;
+  color: rgba(255,255,255,0.85);
+}
+
+.hero-search input {
+  padding: 10px 14px;
+  border-radius: 28px;
+  border: none;
+  min-width: 360px;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.12);
+}
+
+/* main map card */
+.map-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.08);
+  min-height: 480px; /* adjust as required */
+}
+
+/* responsive */
+@media (max-width: 900px) {
+  .hero-search input { min-width: 180px; }
+  .map-card { min-height: 360px; }
+}

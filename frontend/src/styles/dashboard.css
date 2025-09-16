@@ -1,4 +1,4 @@
-/* src/styles/dashboard.css */
+/* frontend/src/styles/dashboard.css */
 .dashboard-root { padding: 24px; font-family: Inter, Arial, sans-serif; background: linear-gradient(180deg,#6b5bde 0%, #6b5bd8 100%); min-height:100vh; color:#fff; }
 .dashboard-header { display:flex; justify-content:space-between; align-items:center; gap:20px; padding-bottom:20px; }
 .title { display:flex; gap:12px; align-items:center; }

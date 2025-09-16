@@ -1,10 +1,9 @@
-// src/utils/charts.js
+// frontend/src/utils/charts.js
 export function formatNumber(n) {
   if (n === null || n === undefined) return "N/A";
   if (typeof n !== "number") n = Number(n) || 0;
   return n.toLocaleString();
 }
-
 export const defaultChartOptions = {
   responsive: true,
   maintainAspectRatio: false,
@@ -23,11 +22,7 @@ export const defaultChartOptions = {
   scales: {
     y: {
       beginAtZero: true,
-      ticks: {
-        callback: function(value) {
-          return value.toLocaleString();
-        }
-      }
+      ticks: { callback: function(value) { return value.toLocaleString(); } }
     }
   }
 };
