@@ -10,7 +10,7 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js';
-import { getStatesOverview, getStateAggregate } from '../ingresApi';
+import { getStatesOverview, getStateAggregate } from '../api/ingresApi';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend);
 

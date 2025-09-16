@@ -1,6 +1,6 @@
 // frontend/src/components/OverviewCards.jsx
 import React, { useEffect, useState } from "react";
-import { getOverview } from "../ingresApi";
+import { getOverview } from "../api/ingresApi";
 
 export default function OverviewCards() {
   const [ov, setOv] = useState(null);

@@ -1,0 +1,40 @@
+/* src/styles/footer.css */
+.app-footer {
+  background: linear-gradient(180deg, #1f2933 0%, #0f1720 100%);
+  color: #fff;
+  padding: 48px 40px;
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+  margin-top: 40px;
+  box-shadow: 0 -8px 24px rgba(0,0,0,0.25);
+}
+
+.app-footer .footer-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px,1fr));
+  gap: 28px;
+  align-items: start;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.app-footer h4 {
+  margin-top:0;
+  font-weight:700;
+  margin-bottom:12px;
+}
+
+.app-footer ul {
+  list-style:none;
+  padding:0;
+  margin:0;
+}
+.app-footer a { color: #9ad2ff; text-decoration: none; }
+.app-footer .back-to-top {
+  text-align:center;
+  padding:8px 12px;
+  background: rgba(255,255,255,0.04);
+  border-radius:6px;
+  display:inline-block;
+  color:#fff;
+}

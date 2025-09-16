@@ -1,0 +1,112 @@
+/* src/styles/main.css - single css for layout and components */
+
+/* Basic resets */
+:root {
+  --purple-1: #8a5bff;
+  --purple-2: #7c4dff;
+  --card-bg: #fff;
+  --muted: #666;
+  --sidebar-width: 240px;
+  --footer-dark: linear-gradient(180deg, rgba(18,18,18,0.95), rgba(6,6,6,0.95));
+}
+
+* { box-sizing: border-box; }
+body, html, #root { height: 100%; margin: 0; font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial; }
+
+/* Layout */
+.app-root { display: flex; min-height: 100vh; background: linear-gradient(135deg, #9f6bff 0%, #8a6dff 100%); }
+.app-sidebar {
+  width: var(--sidebar-width);
+  background: #fff;
+  border-right: 1px solid rgba(0,0,0,0.04);
+  padding: 22px 16px;
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  overflow: auto;
+}
+.sidebar-top .logo { font-weight: 700; color: #4b2bd5; margin-bottom: 18px; display:flex; align-items:center; gap:8px; }
+.sidebar-nav { display:flex; flex-direction:column; gap:10px; margin-top:20px; }
+.nav-item {
+  display:flex; align-items:center; gap:10px; padding:10px; color:#222; text-decoration:none; border-radius:8px;
+}
+.nav-item:hover { background: rgba(0,0,0,0.04); transform: translateX(6px); transition: transform 150ms ease; }
+.nav-emoji { font-size:18px; }
+
+/* App content sits to right of sidebar */
+.app-content { margin-left: var(--sidebar-width); padding-bottom: 180px; width: calc(100% - var(--sidebar-width)); min-height: 100vh; display:flex; flex-direction:column; }
+
+/* Header */
+.dashboard-header { padding: 28px 40px; display:flex; align-items:center; gap:24px; }
+.dashboard-title h1 { margin:0; font-size:40px; color:#fff; text-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+.dashboard-title .subtitle { margin:0; color:rgba(255,255,255,0.85); font-size:14px; margin-top:8px; }
+.dashboard-search { margin-left:auto; width:44%; }
+
+/* Search input */
+.search-input {
+  width:100%; padding:16px 20px; border-radius:26px; border:none; outline:none; box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+  background: rgba(255,255,255,0.18); color: #fff;
+}
+.search-input::placeholder { color: rgba(255,255,255,0.7); }
+
+/* Main */
+.dashboard-main { padding: 12px 40px 30px 40px; display:flex; flex-direction:column; gap:22px; }
+
+.map-and-quick { display:flex; gap:22px; align-items:flex-start; }
+.map-panel { flex: 1 1 70%; background: var(--card-bg); border-radius:12px; padding:18px; box-shadow: 0 6px 14px rgba(0,0,0,0.08); }
+.map-wrapper { margin-top:8px; border-radius:10px; overflow:hidden; background:#f6f6f6; padding:6px; }
+.quick-panel { width:320px; display:flex; flex-direction:column; gap:18px; }
+
+.card { background: var(--card-bg); padding:18px; border-radius:14px; box-shadow: 0 6px 14px rgba(0,0,0,0.06); color:#222; }
+.card.small { padding:14px; }
+.card.big { padding:28px; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+.card.fullwidth { width:100%; }
+
+.big-metric { font-size:40px; color: var(--purple-2); font-weight:700; margin-top:10px; }
+.label { color:#8b8b8b; margin-top:6px; letter-spacing:1px; }
+
+.trends-panel { margin-top:12px; padding-bottom:28px; }
+
+/* Visualizations / Live pages */
+.page-header { display:flex; align-items:center; gap:20px; padding: 22px 40px; }
+.controls { display:flex; align-items:center; gap:10px; margin-left:auto; }
+.select-state { padding:8px 10px; border-radius:6px; border:1px solid rgba(0,0,0,0.12); }
+.btn { padding:8px 12px; border-radius:8px; cursor:pointer; background:var(--purple-2); color:#fff; border:none; }
+
+/* Footer (full width, rounded top corners, dark gradient, white text) */
+.site-footer {
+  margin-top:auto;
+  width:100%;
+  background: linear-gradient(180deg,#111217 0%, #060607 100%);
+  color: #fff;
+  padding: 28px 40px;
+  border-top-left-radius: 18px;
+  border-top-right-radius: 18px;
+}
+.footer-inner {
+  display:flex;
+  gap:24px;
+  align-items:flex-start;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  padding-bottom:14px;
+}
+.footer-col { width:23%; min-width:180px; }
+.footer-col h4 { margin:0 0 8px 0; }
+.footer-bottom { padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.06); margin-top: 12px; }
+
+/* small screens */
+@media (max-width: 960px) {
+  .app-sidebar { position:relative; width: 80px; }
+  .app-content { margin-left: 80px; }
+  .dashboard-header { padding:12px; }
+  .dashboard-title h1 { font-size:28px; }
+  .dashboard-search { width: 40%; }
+  .map-and-quick { flex-direction:column; }
+  .quick-panel { width:100%; order:2; }
+}
+
+/* Utility */
+.muted { color: var(--muted); }
+.hidden-submit { display:none; }

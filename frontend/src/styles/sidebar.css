@@ -1,0 +1,6 @@
+/* frontend/src/styles/sidebar.css */
+.nav-links a { position:relative; overflow:hidden; }
+.nav-links a::after {
+  content:""; position:absolute; left:0; top:0; height:100%; width:0; background:linear-gradient(90deg, rgba(107,70,255,0.14), rgba(167,107,255,0.06)); transition: width 220ms ease;
+}
+.nav-links a:hover::after { width:100%; }

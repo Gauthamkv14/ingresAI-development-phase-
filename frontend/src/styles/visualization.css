@@ -1,0 +1,22 @@
+/* src/styles/visualization.css - minimal, safe defaults */
+.visualization-container {
+  background: var(--panel-bg, #fff);
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+  margin: 12px 0;
+}
+
+/* Trend chart area sizing */
+.trend-chart {
+  width: 100%;
+  min-height: 360px;
+}
+
+/* Left aligned dropdown row */
+.viz-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}

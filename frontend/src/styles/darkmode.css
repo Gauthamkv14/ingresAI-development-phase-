@@ -1,0 +1,23 @@
+/* basic theme variables */
+:root {
+  --bg: #f6f5fb;
+  --panel-bg: #fff;
+  --text: #222;
+  --accent: #7146ff;
+}
+
+body.dark {
+  --bg: #0b0f13;
+  --panel-bg: #0f1720;
+  --text: #e6eef8;
+  --accent: #9d66ff;
+}
+
+.app-shell {
+  background: linear-gradient(180deg, var(--bg), #caa7ff33);
+  color: var(--text);
+}
+.panel {
+  background: var(--panel-bg);
+  color: var(--text);
+}

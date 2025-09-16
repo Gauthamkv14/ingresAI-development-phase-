@@ -1,6 +1,6 @@
 // frontend/src/components/Chatbot.js
 import React, { useState, useEffect } from "react";
-import { postChat } from "../ingresApi"; // use API helper
+import { postChat } from "../api/ingresApi"; // use API helper
 import { toast } from "react-toastify";
 
 // Simple Chatbot component
