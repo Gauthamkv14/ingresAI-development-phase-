@@ -21,16 +21,16 @@ function App() {
   const [searchResults, setSearchResults] = useState(null);
   const [selectedLanguage, setSelectedLanguage] = useState('en');
 
-  // the state that Trends should display (selected via dropdown or map click)
+  // state for Trends chart (selected via dropdown or via map-click)
   const [selectedTrendState, setSelectedTrendState] = useState('');
 
-  // store last map click info if needed elsewhere
+  // store last map click meta (district + state resolved)
   const [lastMapClick, setLastMapClick] = useState(null);
 
   // ephemeral banner
   const [banner, setBanner] = useState({ show: false, text: '' });
 
-  // helper to find CSV columns robustly
+  // helpers
   const find = (row, candidates = []) => {
     for (const c of candidates) {
       if (row[c] !== undefined && row[c] !== '') return row[c];
@@ -51,49 +51,47 @@ function App() {
     loadCSV();
   }, []);
 
-  // open chat floating button listener
+  // open chat handler (legacy usage elsewhere)
   useEffect(() => {
     const handler = () => setActiveTab('chat');
     window.addEventListener('openChat', handler);
     return () => window.removeEventListener('openChat', handler);
   }, []);
 
-  // map click -> resolve district -> find its state -> navigate to Trends in Overview
+  // mapStateClick handler: resolve district -> state, show banner and select trends state
+  // IMPORTANT GUARD: if user is on the Charts page, do NOT redirect to Overview.
   useEffect(() => {
     const handler = (e) => {
       const detail = (e && e.detail) ? e.detail : {};
       const normalize = (s) => (s || '').toString().trim();
 
-      // Build a set of known states (canonical values from CSV) for quick checking
+      // If user is currently viewing Charts, don't navigate away
+      if (activeTab === 'charts') {
+        // we can still update lastMapClick and selectedTrendState so user can manually go to Overview if they want
+        // but do not automatically navigate.
+      }
+
       const statesList = Array.from(new Set(groundwaterData.map(r => (r.state || '').toString().trim()).filter(Boolean)));
 
-      // Candidate district/name we received from the map (the map may put district in detail.name or detail.district)
       const districtCandidate = normalize(detail.district || detail.name || detail.label || detail.place || detail.feature || "");
-
-      // Candidate state if map provided one
       const providedStateCandidate = normalize(detail.state || "");
 
       let resolvedState = null;
 
-      // 1) If we have a districtCandidate, attempt to find the STATE by searching CSV rows (best effort)
+      // 1) Try resolve from district by scanning CSV rows
       if (districtCandidate) {
         const dLow = districtCandidate.toLowerCase();
-
-        // Try exact then contains then partial token match
         let match = groundwaterData.find(r => {
           const rD = normalize(r.district || r.DISTRICT || r.District || r['District Name'] || r['district_name']).toLowerCase();
           return rD && (rD === dLow);
         });
-
         if (!match) {
           match = groundwaterData.find(r => {
-            const rD = normalize(r.district || r.DISTRICT || r.District || r['District Name'] || r['district_name']).toLowerCase();
+            const rD = normalize(r.district || '').toLowerCase();
             return rD && (rD.includes(dLow) || dLow.includes(rD));
           });
         }
-
         if (!match && districtCandidate.includes(' ')) {
-          // Try fuzzy token match (some map labels may be 'Hassan district' or similar)
           const tokens = districtCandidate.split(/\s+/).map(t => t.toLowerCase()).filter(Boolean);
           for (const r of groundwaterData) {
             const rD = normalize(r.district || '').toLowerCase();
@@ -106,59 +104,52 @@ function App() {
             if (match) break;
           }
         }
-
         if (match && match.state) {
-          resolvedState = normalize(match.state);
-          // Use the exact canonical state string from the row (preserve casing)
           resolvedState = match.state.toString().trim();
         }
       }
 
-      // 2) If we didn't resolve via district, but map provided a state that matches our known states -> accept it
+      // 2) fallback to provided state if it matches known states
       if (!resolvedState && providedStateCandidate) {
         const pLow = providedStateCandidate.toLowerCase();
-        // find canonical match from statesList
         const canon = statesList.find(s => s.toLowerCase() === pLow) || statesList.find(s => s.toLowerCase().includes(pLow) || pLow.includes(s.toLowerCase()));
         if (canon) resolvedState = canon;
-        else resolvedState = providedStateCandidate; // last fallback - use as-is
+        else resolvedState = providedStateCandidate;
       }
 
-      // 3) final fallback: if districtCandidate itself equals a state (edge case), accept it
+      // 3) final fallback: use district if it *is* actually a state name in dataset
       if (!resolvedState && districtCandidate) {
         const p = statesList.find(s => s.toLowerCase() === districtCandidate.toLowerCase());
         if (p) resolvedState = p;
       }
 
-      if (!resolvedState) {
-        // nothing resolved — bail (do nothing)
-        return;
-      }
+      if (!resolvedState) return;
 
-      // store last click (district + resolved state)
+      // save last click metadata
       setLastMapClick({ district: districtCandidate || null, state: resolvedState });
 
-      // set selected trend state so Trends chart displays immediately
+      // choose the state for Trends chart
       setSelectedTrendState(resolvedState);
 
-      // navigate to Overview (where Trends is)
-      setActiveTab('overview');
-
-      // show ephemeral banner with STATE name (uppercase)
-      const bannerText = `Showing trends for ${resolvedState.toString().toUpperCase()}`;
+      // show banner with STATE name uppercase
+      const bannerText = `Showing trends for ${resolvedState.toUpperCase()}`;
       setBanner({ show: true, text: bannerText });
       setTimeout(() => setBanner(prev => ({ ...prev, fading: true })), 900);
       setTimeout(() => setBanner({ show: false, text: '' }), 1400);
 
-      // scroll to trends card
-      setTimeout(() => {
-        const el = document.querySelector('.trends-card');
-        if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }, 250);
+      // scroll to Trends card: only navigate if not on Charts page
+      if (activeTab !== 'charts') {
+        setActiveTab('overview');
+        setTimeout(() => {
+          const el = document.querySelector('.trends-card');
+          if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 250);
+      }
     };
 
     window.addEventListener('mapStateClick', handler);
     return () => window.removeEventListener('mapStateClick', handler);
-  }, [groundwaterData]);
+  }, [groundwaterData, activeTab]);
 
   const loadCSV = async () => {
     setLoading(true);
@@ -297,7 +288,6 @@ function App() {
 
                 <div className="card trends-card">
                   <h3>Trends</h3>
-                  {/* key forces remount so Charts will initialise properly when selectedTrendState changes */}
                   <Charts
                     key={`trends-${selectedTrendState || 'none'}`}
                     mode="overview-trends"
