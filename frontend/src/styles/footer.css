@@ -1,13 +1,29 @@
-.site-footer {
-  background: linear-gradient(180deg,#0e1113,#0a0c0e);
-  color: #fff;
-  padding: 28px 36px;
-  border-top-left-radius: 18px;
-  border-top-right-radius: 18px;
+/* src/components/footer.css */
+.app-footer {
+  background: linear-gradient(180deg,#111 0%, #0d1113 100%);
+  color: #ddd;
+  padding: 28px 40px 12px;
   margin-top: 28px;
 }
-.footer-inner { display:flex;gap:24px;flex-wrap:wrap;justify-content:space-between; }
-.footer-col { flex:1 1 200px; min-width:180px; }
-.footer-col h4 { margin-bottom:8px; }
-.footer-bottom { margin-top:18px; font-size:13px; opacity:0.9; text-align:center; padding-top:12px; border-top:1px solid rgba(255,255,255,0.04); }
-html:not(.dark) .site-footer { background: linear-gradient(180deg,#10141a,#1b2a39); color:#fff; }
+
+.footer-inner {
+  display:flex;
+  gap: 32px;
+  max-width:1200px;
+  margin: 0 auto;
+  padding-bottom: 12px;
+}
+
+.footer-col { flex: 1; }
+.footer-col h4 { color: #fff; margin-bottom:8px; }
+.footer-col p, .footer-col ul { margin:0; font-size:14px; }
+.footer-col ul { list-style: none; padding-left:0; }
+.footer-col a { color: #bdbdfd; text-decoration: none; }
+
+.footer-bottom {
+  border-top: 1px solid rgba(255,255,255,0.04);
+  margin-top: 12px;
+  padding-top: 12px;
+  text-align:center;
+  color: #9aa0a6;
+}

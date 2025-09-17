@@ -1,121 +1,132 @@
-/* frontend/src/styles/dashboard.css
-   Clean, centered title, left sidebar spacing, cards and quick stats.
-*/
-
-:root{
-  --accent:#7b61ff;
-  --muted:#6b7280;
-  --card-bg:#ffffff;
-  --page-bg:#f6f6f9;
-  --text:#111827;
+/* src/styles/dashboard.css - updated */
+:root {
+  --brand-start: #7b61ff;
+  --brand-end: #b36bff;
+  --sidebar-bg: #0f1720; /* dark navy for sidebar */
+  --sidebar-text: #cfe3ff;
+  --card-bg: #fff;
 }
 
-*{box-sizing:border-box}
-body{margin:0; font-family:Inter, "Segoe UI", Roboto, Arial, sans-serif; background:var(--page-bg); color:var(--text);}
-
-.app-root { display:flex; min-height:100vh; }
-
-/* left "sidebar area" reserved (fixed independent sidebar handled by App.css/left-sidebar) */
-.side-space { width:240px; }
-
-/* top header / hero */
-.dashboard-header {
-  padding: 28px 24px 10px 24px;
-  background: linear-gradient(135deg, var(--accent) 0%, #b36bff 100%);
+/* page layout */
+.app-header {
+  background: linear-gradient(90deg, var(--brand-start), var(--brand-end));
+  padding: 18px 28px;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.08);
   color: #fff;
-  box-shadow: 0 6px 18px rgba(16,24,40,0.08);
-}
-.dashboard-title {
-  font-size: 48px;
-  margin: 0;
-  text-align: center;
-  letter-spacing: -0.02em;
-  font-weight: 700;
-  text-shadow: 0 6px 18px rgba(0,0,0,0.08);
-}
-.dashboard-sub {
-  margin: 8px 0 0 0;
-  text-align: center;
-  color: rgba(255,255,255,0.9);
-  font-size: 14px;
 }
 
-/* main content area */
-.dashboard-main {
+/* header inner layout */
+.header-inner {
   display:flex;
-  gap:20px;
-  padding: 26px 32px;
-  max-width: 1280px;
+  align-items:center;
+  gap: 12px;
+  max-width: 1200px;
   margin: 0 auto;
-  width: 100%;
+}
+
+/* left / center / right */
+.header-left { display:flex; align-items:center; gap:12px; flex: 0 0 auto; }
+.header-center { flex:1; text-align:center; }
+.header-right { display:flex; align-items:center; gap:12px; justify-content:flex-end; min-width: 360px; }
+
+.brand { display:flex; align-items:center; gap:10px; }
+.brand-logo { font-size:26px; }
+.brand-title { font-weight:700; font-size:18px; }
+.brand-sub { font-size:12px; opacity:0.95; color: rgba(255,255,255,0.95); }
+
+/* centered main title */
+.dashboard-title {
+  font-size:40px;
+  margin:0;
+  color: rgba(255,255,255,0.98);
+  text-shadow: 0 6px 16px rgba(0,0,0,0.16);
+}
+
+/* main content */
+.main-content {
+  max-width: 1200px;
+  margin: 22px auto;
+  padding: 0 18px 40px;
   box-sizing: border-box;
 }
 
-/* grid: map column + right quick column */
-.left-col { flex: 1; display:flex; flex-direction:column; gap:18px; }
-.right-col { width:360px; display:flex; flex-direction:column; gap:18px; }
+/* tabs */
+.page-tabs { display:flex; gap:8px; margin-bottom:18px; justify-content:center; }
+.tab {
+  background: #fff;
+  border-radius: 8px;
+  padding: 8px 12px;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(15,15,15,0.04);
+}
+.tab.active { background: rgba(255,255,255,0.95); box-shadow: 0 8px 28px rgba(0,0,0,0.06); }
 
-/* cards */
+/* grid layout */
+.dashboard-grid {
+  display:grid;
+  grid-template-columns: 1fr 360px;
+  gap: 18px;
+  align-items:start;
+}
+
+/* card */
 .card {
   background: var(--card-bg);
-  border-radius: 14px;
+  border-radius: 12px;
   padding: 18px;
-  box-shadow: 0 10px 30px rgba(16,24,40,0.06);
+  box-shadow: 0 8px 28px rgba(10,10,10,0.04);
   color: #111;
 }
-.card h3 { margin:0 0 14px 0; font-size:20px; }
-.card.large { min-height: 340px; }
 
-/* map card specifics */
-.map-card { height: 460px; overflow:hidden; border-radius:12px; }
+/* quick col items */
+.quick-col .card { margin-bottom: 18px; }
 
-/* trends card */
-.trends-card { min-height:260px; }
+/* map card sizing */
+.map-card { height: 520px; overflow: hidden; }
 
-/* quick column content */
-.overview-card h4, .quick-stats h4 { margin:0 0 12px 0; font-size:18px; }
-.overview-list div { margin:8px 0; color: #111827; }
-.overview-list strong { font-weight:700; color: #0f172a; }
+/* big number */
+.big-number { font-size:36px; color: #7b61ff; text-align:center; padding: 12px 0; font-weight:700; }
 
-/* quick stats */
-.quick-stats .big-number { font-size:40px; font-weight:700; color: var(--accent); text-align:center; padding:18px 0; }
-.stat-list { margin-top:12px; }
-.stat-list div { margin:6px 0; }
-
-/* legend */
-.legend-item { display:flex; align-items:center; gap:10px; margin:6px 0; }
-.dot { width:12px; height:12px; border-radius:6px; display:inline-block; }
-.dot.green{background:#1a9850}
-.dot.yellow{background:#f4bf27}
-.dot.red{background:#d73027}
-
-/* search input shown in header hero area */
-.header-search {
-  margin-top:18px;
-  display:flex;
-  justify-content:center;
-}
-.global-search {
-  width:520px;
-  max-width:calc(100% - 48px);
-  padding:12px 18px;
-  border-radius:28px;
+/* search */
+.main-search {
+  padding: 10px 14px;
+  border-radius: 999px;
   border: none;
-  outline: none;
-  box-shadow: 0 8px 22px rgba(10, 10, 10, 0.06);
+  min-width: 360px;
+  box-shadow: 0 10px 26px rgba(11,14,30,0.05);
 }
 
-/* utilities & spacing */
-.center-row { display:flex; justify-content:center; align-items:center; gap:12px; }
-.mt-6 { margin-top:24px; }
-.mb-6 { margin-bottom:24px; }
+/* sidebar color coordinate (if you use side nav, ensure class names match) */
+.side-nav {
+  width: 240px;
+  background: var(--sidebar-bg);
+  color: var(--sidebar-text);
+  padding: 18px;
+  box-sizing: border-box;
+}
 
-/* responsive */
-@media (max-width: 1100px) {
-  .right-col { width:320px; }
+.side-nav .brand-title { color: #dbeafe; }
+.nav-links a {
+  display:block;
+  padding:12px 10px;
+  color: var(--sidebar-text);
+  text-decoration:none;
+  margin-bottom:8px;
+  border-radius:8px;
+  transition: transform .12s ease, background .12s ease;
 }
-@media (max-width: 880px) {
-  .dashboard-main { flex-direction:column; padding:18px; }
-  .right-col { width:100%; }
-  .global-search { width:100%; }
+.nav-links a:hover {
+  transform: translateX(6px);
+  background: rgba(255,255,255,0.02);
 }
+
+/* small mobile responsiveness */
+@media (max-width: 960px) {
+  .dashboard-grid { grid-template-columns: 1fr; }
+  .main-search { min-width: 180px; }
+  .header-right { min-width: auto; }
+}
+
+/* footer margin */
+.app-footer { margin-top: 40px; }

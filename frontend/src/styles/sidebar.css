@@ -1,6 +1,89 @@
 /* frontend/src/styles/sidebar.css */
-.nav-links a { position:relative; overflow:hidden; }
-.nav-links a::after {
-  content:""; position:absolute; left:0; top:0; height:100%; width:0; background:linear-gradient(90deg, rgba(107,70,255,0.14), rgba(167,107,255,0.06)); transition: width 220ms ease;
+
+/* Sidebar container */
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  width: 220px;
+  background: #1e293b; /* dark slate */
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 2px 0 6px rgba(0,0,0,0.15);
+  z-index: 1000;
 }
-.nav-links a:hover::after { width:100%; }
+
+/* Dark variant (if you pass dark=true) */
+.sidebar-dark {
+  background: #111827;
+}
+
+/* Sidebar top (logo area) */
+.sidebar-top {
+  padding: 1rem;
+  font-weight: 700;
+  font-size: 1.2rem;
+  text-align: center;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+/* Navigation area */
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  margin-top: 1rem;
+}
+
+/* Sidebar buttons */
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0.8rem 1rem;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 0.95rem;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.25s ease, transform 0.2s ease;
+}
+
+/* Hover animation */
+.sidebar-item::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, rgba(107,70,255,0.2), rgba(167,107,255,0.1));
+  transition: width 0.25s ease;
+  z-index: -1;
+}
+
+.sidebar-item:hover::after {
+  width: 100%;
+}
+
+.sidebar-item:hover {
+  transform: translateX(4px);
+}
+
+/* Active state */
+.sidebar-item.active {
+  background: rgba(107,70,255,0.25);
+  font-weight: 600;
+}
+
+/* Emoji icon */
+.sidebar-item .emoji {
+  font-size: 1.2rem;
+}
+
+/* Push main content right so it doesn't overlap */
+body, .App {
+  margin-left: 220px;
+}

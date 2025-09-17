@@ -1,159 +1,123 @@
-// frontend/src/components/Chatbot.jsx
-import React, { useState, Suspense } from "react";
-import axios from "axios";
-
-const Plot = React.lazy(() => import('react-plotly.js'));
+// src/components/Chatbot.jsx
+import React, { useState } from "react";
 
 export default function Chatbot() {
   const [messages, setMessages] = useState([
-    { from: "bot", text: "Hello — ask me for a state's groundwater data, e.g. 'Show me Karnataka groundwater data'." }
+    { from: 'bot', text: "Hello — ask me for a state's groundwater data (e.g. 'Show me Karnataka rainfall and recharge'), or compare two states." }
   ]);
-  const [input, setInput] = useState("");
+  const [value, setValue] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const addMessage = (m) => setMessages(prev => [...prev, m]);
+  const push = (m) => setMessages(prev => [...prev, m]);
 
-  const send = async (text) => {
-    if (!text) return;
-    addMessage({ from: "user", text });
-    setInput("");
+  const sendQuery = async (q) => {
+    if (!q || loading) return;
+    push({ from: 'user', text: q });
+    setValue('');
     setLoading(true);
     try {
-      const res = await axios.post("/api/chat", { query: text });
-      const data = res.data;
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: q })
+      });
+      const json = await res.json();
 
-      if (data.intent === "state_aggregate") {
-        addMessage({ from: "bot", text: data.explanation });
-        addMessage({ from: "bot", aggregate: data.aggregates, counts: data.counts, districts: data.districts });
-      } else if (data.intent === "compare") {
-        addMessage({ from: "bot", compare: data.compare, state1: data.state1, state2: data.state2 });
-      } else if (data.intent === "district_aggregate") {
-        addMessage({ from: "bot", text: `District ${data.district} aggregates:`, aggregate: data.aggregate });
-      } else if (data.intent === "state_trend" || data.intent === "district_trend") {
-        // the backend returns time_series: [{month: 'YYYY-MM', value: x}, ...]
-        if (data.time_series && data.time_series.length > 0) {
-          addMessage({ from: "bot", text: `Here is the time series for ${data.metric_column ? data.metric_column : 'metric'} in ${data.state || data.district}`, time_series: data.time_series, title: (data.district ? `${data.district}, ${data.state}` : data.state) });
+      // Format response concisely
+      if (json.intent === 'list_states') {
+        push({ from: 'bot', text: `Available states: ${json.states.slice(0,50).join(', ')}${json.states.length>50 ? ', ...' : ''}` });
+      } else if (json.intent === 'compare_states' && json.left && json.right) {
+        const a = json.left.metrics;
+        const b = json.right.metrics;
+        const leftName = json.left.state;
+        const rightName = json.right.state;
+        // show only a few key metrics for comparison
+        const keys = [
+          "Annual Extractable Ground water Resource (ham)_C",
+          "Total Ground Water Availability in the area (ham)_Fresh",
+          "Net Annual Ground Water Availability for Future Use (ham)_C",
+          "Stage of Ground Water Extraction (%)_C"
+        ];
+        const lines = keys.map(k => {
+          const av = a[k] !== undefined && a[k] !== null ? a[k] : '—';
+          const bv = b[k] !== undefined && b[k] !== null ? b[k] : '—';
+          return `${k}: ${leftName}=${av} | ${rightName}=${bv}`;
+        }).join('\n');
+        push({ from: 'bot', text: `Comparison (${leftName} vs ${rightName}):\n${lines}` });
+      } else if (json.intent === 'state_metrics' || json.intent === 'state_overview') {
+        // If user asked specific metric words, backend normally returns "requested" inside result
+        if (json.result && json.result.requested && Object.keys(json.result.requested).length > 0) {
+          const pairs = Object.entries(json.result.requested).map(([k, v]) => `${k}: ${v === null ? '—' : v}`);
+          push({ from: 'bot', text: pairs.join('\n') });
+        } else if (json.metrics) {
+          // concise summary of the most relevant numbers
+          const m = json.metrics;
+          const summary = [
+            `State: ${json.state}`,
+            `Total availability (stock): ${m["Total Ground Water Availability in the area (ham)_Fresh"] ?? '—'}`,
+            `Extractable (usable): ${m["Annual Extractable Ground water Resource (ham)_C"] ?? '—'}`,
+            `Net available for future use: ${m["Net Annual Ground Water Availability for Future Use (ham)_C"] ?? '—'}`,
+            `Stage of extraction (avg%): ${m.stage_extraction_pct_avg ?? '—'}`,
+          ].join('\n');
+          push({ from: 'bot', text: summary });
         } else {
-          addMessage({ from: "bot", text: "No time-series data available for that query (CSV may lack timestamps)." });
+          push({ from: 'bot', text: json.explanation || json.answer || "Got it — but couldn't produce a concise metric." });
         }
-      } else if (data.intent === "list_states") {
-        addMessage({ from: "bot", text: `Available states: ${data.states.join(", ")}` });
-      } else if (data.intent === "none") {
-        addMessage({ from: "bot", text: data.answer || "I couldn't understand your request." });
+      } else if (json.intent === 'state_districts') {
+        // give short top-5 district summary by extractable
+        const rows = json.districts || [];
+        const extractableKey = "Annual Extractable Ground water Resource (ham)_C";
+        const top = rows.slice().sort((a,b) => (b[extractableKey] || 0) - (a[extractableKey] || 0)).slice(0,5);
+        const lines = top.map(r => `${r.district}: ${r[extractableKey] ?? '—'}`);
+        push({ from: 'bot', text: `Top districts by extractable:\n${lines.join('\n')}` });
+      } else if (json.intent === 'none') {
+        push({ from: 'bot', text: json.answer || "I couldn't detect a state or metric. Try: 'Show Karnataka rainfall' or 'Compare Karnataka and Kerala'." });
       } else {
-        addMessage({ from: "bot", text: data.answer || "Response received." });
+        // default fallback: show short explanation only
+        const out = json.explanation || (json.answer && typeof json.answer === 'string' ? json.answer : "Here's what I found.");
+        push({ from: 'bot', text: out });
       }
     } catch (err) {
       console.error(err);
-      addMessage({ from: "bot", text: "Server error — please try again." });
+      push({ from: 'bot', text: "Sorry — couldn't reach backend. Try again." });
     } finally {
       setLoading(false);
     }
   };
 
-  const onSubmit = (e) => {
-    e.preventDefault();
-    if (input.trim()) send(input.trim());
-  };
-
-  const renderAggregateCard = (agg, counts, districts) => (
-    <div style={{ background: "#fafafa", padding: 12, borderRadius: 8 }}>
-      <div style={{ fontWeight: 700 }}>{agg.state}</div>
-      <table style={{ width: "100%", marginTop: 8 }}>
-        <tbody>
-          {Object.keys(agg).filter(k => !k.startsWith("state") && k !== "num_districts").map((k) => (
-            <tr key={k}>
-              <td style={{ padding: 6 }}>{k}</td>
-              <td style={{ padding: 6, textAlign: "right" }}>{Number(agg[k] || 0).toLocaleString()}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {counts && <div style={{ marginTop: 8 }}>
-        <strong>Counts</strong>
-        <div>Critical: {counts.critical ?? "—"} — Tanks/Ponds (sum): {counts.tanks_ponds_sum ?? "—"}</div>
-      </div>}
-      {districts && districts.length > 0 && (
-        <div style={{ marginTop: 8 }}>
-          <em>Districts included: {districts.length}</em>
-        </div>
-      )}
-    </div>
-  );
-
-  const renderCompare = (compare, s1, s2) => (
-    <div style={{ overflowX: "auto", background: "#fff", padding: 8, borderRadius: 8 }}>
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
-        <thead>
-          <tr>
-            <th style={{ textAlign: "left", padding: 8 }}>Metric</th>
-            <th style={{ textAlign: "right", padding: 8 }}>{s1}</th>
-            <th style={{ textAlign: "right", padding: 8 }}>{s2}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {compare.map((r, idx) => (
-            <tr key={idx}>
-              <td style={{ padding: 8 }}>{r.metric}</td>
-              <td style={{ padding: 8, textAlign: "right" }}>{Number(r.state1 || 0).toLocaleString()}</td>
-              <td style={{ padding: 8, textAlign: "right" }}>{Number(r.state2 || 0).toLocaleString()}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-
-  const renderTimeSeries = (ts, title) => {
-    // ts: [{month: 'YYYY-MM', value: x}, ...]
-    const x = ts.map(d => d.month);
-    const y = ts.map(d => d.value);
-    return (
-      <div style={{ background: "#fff", padding: 8, borderRadius: 8 }}>
-        <div style={{ fontWeight: 700, marginBottom: 8 }}>{title}</div>
-        <Suspense fallback={<div>Loading chart…</div>}>
-          <Plot
-            data={[{ x, y, type: 'scatter', mode: 'lines+markers' }]}
-            layout={{ margin: { t: 20, r: 10, l: 40, b: 80 }, height: 300, xaxis: { tickangle: -45 } }}
-            style={{ width: '100%' }}
-          />
-        </Suspense>
-      </div>
-    );
-  };
-
   return (
-    <div style={{ background: "#fff", borderRadius: 10, padding: 12 }}>
-      <div style={{ maxHeight: 420, overflowY: "auto", marginBottom: 8 }}>
+    <div className="chat-container" style={{ padding: 12 }}>
+      <div className="chat-messages" style={{ maxHeight: 420, overflowY: 'auto', marginBottom: 8 }}>
         {messages.map((m, i) => (
-          <div key={i} style={{ marginBottom: 10, display: "flex", justifyContent: m.from === "user" ? "flex-end" : "flex-start" }}>
+          <div key={i} style={{ marginBottom: 8, textAlign: m.from === 'bot' ? 'left' : 'right' }}>
             <div style={{
-              background: m.from === "user" ? "linear-gradient(90deg,#a84ef0,#ff6fb3)" : "#f1f1f1",
-              color: m.from === "user" ? "#fff" : "#111",
-              padding: 12, borderRadius: 12, maxWidth: "75%"
+              display: 'inline-block',
+              padding: '10px 14px',
+              borderRadius: 14,
+              background: m.from === 'bot' ? '#eee' : 'linear-gradient(90deg,#9b5cff,#ff67c0)',
+              color: m.from === 'bot' ? '#222' : '#fff',
+              maxWidth: '82%',
+              whiteSpace: 'pre-wrap'
             }}>
-              {m.text && <div style={{ marginBottom: 6 }}>{m.text}</div>}
-              {m.aggregate && renderAggregateCard(m.aggregate, m.counts, m.districts)}
-              {m.compare && renderCompare(m.compare, m.state1, m.state2)}
-              {m.time_series && renderTimeSeries(m.time_series, m.title || "Time Series")}
-              {m.districts && Array.isArray(m.districts) && m.districts.length > 0 && (
-                <div style={{ marginTop: 8 }}>
-                  <strong>Districts ({m.districts.length})</strong>
-                  <div style={{ fontSize: 12 }}>
-                    {m.districts.slice(0, 6).map(d => <div key={d.district}>{d.district}</div>)}
-                    {m.districts.length > 6 && <div>...and others</div>}
-                  </div>
-                </div>
-              )}
+              {m.text}
             </div>
           </div>
         ))}
       </div>
 
-      <form onSubmit={onSubmit} style={{ display: "flex", gap: 8 }}>
-        <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask something..." style={{ flex: 1, padding: "12px 14px", borderRadius: 24, border: "1px solid #ddd" }} />
-        <button type="submit" disabled={loading} style={{ padding: "10px 14px", borderRadius: 12, background: "#6B46C1", color: "#fff", border: "none" }}>{loading ? "…" : "▶"}</button>
-      </form>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') sendQuery(value); }}
+          placeholder="Ask something..."
+          style={{ flex: 1, padding: '10px 12px', borderRadius: 999, border: '1px solid #ddd' }}
+        />
+        <button onClick={() => sendQuery(value)} disabled={loading} style={{ padding: '10px 12px', borderRadius: 8 }}>
+          {loading ? '...' : 'Send'}
+        </button>
+      </div>
     </div>
   );
 }
+// 
