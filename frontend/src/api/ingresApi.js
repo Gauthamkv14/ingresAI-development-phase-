@@ -1,13 +1,11 @@
-// small helper API client
+// src/api/ingresApi.jsx
 export async function postChat(query) {
   const res = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ query }),
   });
-  if (!res.ok) {
-    throw new Error("chat failed");
-  }
+  if (!res.ok) throw new Error("chat failed");
   return res.json();
 }
 
@@ -33,4 +31,10 @@ export async function getOverview() {
   const r = await fetch(`/api/overview`);
   if (!r.ok) throw new Error("overview failed");
   return r.json();
+}
+
+export async function getStatesOverview(){
+  const res = await fetch("/api/states");
+  if (!res.ok) throw new Error("states fetch failed");
+  return res.json();
 }

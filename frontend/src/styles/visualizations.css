@@ -24,3 +24,11 @@
 .visualization-wrapper { padding: 20px; }
 .visualization-dropdown { margin-bottom: 12px; display:flex; align-items:center; gap:8px; }
 .visualization-card { padding:18px; border-radius:10px; background:var(--card-bg); }
+.visualizations { max-width:1200px; margin:0 auto; }
+.visual-header h2 { margin: 0 0 8px; font-size:28px; margin-bottom:14px; }
+.visual-body { display:flex; gap:24px; margin-top:18px; align-items:flex-start; }
+.left-col { width:220px; }
+.left-col select { width:100%; padding:10px; border-radius:8px; }
+.chart-col { flex:1; }
+.card .placeholder { padding:36px; color:#6b7280; }
+.placeholder { padding:40px; color:#657085; background:#fff; border-radius:12px; box-shadow:0 6px 18px rgba(20,20,20,0.04); }

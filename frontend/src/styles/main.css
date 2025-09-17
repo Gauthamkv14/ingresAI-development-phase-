@@ -110,3 +110,123 @@ body, html, #root { height: 100%; margin: 0; font-family: "Segoe UI", Roboto, "H
 /* Utility */
 .muted { color: var(--muted); }
 .hidden-submit { display:none; }
+
+/* Sidebar placement & main area spacing */
+:root {
+  --sidebar-width: 220px;
+  --header-height: 68px; /* adjust if your header is taller/shorter */
+}
+
+/* Make sidebar fixed to extreme left */
+.app-sidebar {
+  position: fixed;
+  top: var(--header-height);
+  left: 0;
+  bottom: 0;
+  width: var(--sidebar-width);
+  padding: 18px;
+  background: var(--sidebar-bg, #0f1724); /* keep compatible with dark mode if set */
+  color: var(--sidebar-color, #e6eef8);
+  border-right: 1px solid rgba(255,255,255,0.04);
+  z-index: 50;
+  overflow-y: auto;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+}
+
+/* Main area should not sit under the fixed sidebar */
+.main-area {
+  margin-left: calc(var(--sidebar-width) + 20px); /* main content pushed right */
+  transition: margin-left 200ms ease;
+  padding: 18px;
+}
+
+/* Sidebar header/logo */
+.app-sidebar .sidebar-top .logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  margin-bottom: 18px;
+  font-size: 15px;
+}
+
+/* Nav layout */
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Nav item base */
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  color: inherit;
+  text-decoration: none;
+  font-weight: 600;
+  transition:
+    transform 180ms cubic-bezier(.2,.9,.2,1),
+    background 180ms ease,
+    box-shadow 180ms ease;
+  will-change: transform;
+  outline: none;
+  user-select: none;
+}
+
+/* Emoji/icon */
+.nav-emoji {
+  display: inline-block;
+  font-size: 1.1rem;
+  transition: transform 220ms cubic-bezier(.25,.9,.4,1);
+  width: 24px;
+  text-align: center;
+}
+
+/* Label text */
+.nav-label {
+  white-space: nowrap;
+  font-size: 0.95rem;
+}
+
+/* Hover interactions (animation) */
+.nav-item:hover {
+  transform: translateX(8px) scale(1.02);
+  background: rgba(255,255,255,0.03);
+  box-shadow: 0 6px 18px rgba(2,6,23,0.25);
+}
+
+/* small emoji flourish on hover */
+.nav-item:hover .nav-emoji {
+  transform: translateX(4px) rotate(-10deg) scale(1.05);
+}
+
+/* Active route style */
+.nav-item.active {
+  background: rgba(99,102,241,0.12); /* subtle accent - change to brand color if you want */
+  box-shadow: inset 0 -2px 0 rgba(99,102,241,0.18);
+}
+
+/* responsive smaller screens: make sidebar relative again */
+@media (max-width: 880px) {
+  .app-sidebar {
+    position: relative;
+    width: 100%;
+    top: 0;
+    border-right: none;
+    box-shadow: none;
+  }
+  .main-area {
+    margin-left: 0;
+  }
+}
+
+/* Optional: styling for the state selector select (from StateSelector.jsx) */
+.state-selector-select {
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--select-bg, #ffffff);
+  border: 1px solid rgba(0,0,0,0.08);
+}

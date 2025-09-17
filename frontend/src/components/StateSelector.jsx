@@ -18,9 +18,13 @@ export default function StateSelector({ states = [], value, onChange }) {
   }
 
   return (
-    <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+    <div className="state-selector" style={{ display: "flex", gap: 12, alignItems: "center" }}>
       <label style={{ fontWeight: 600 }}>State</label>
-      <select value={value || ""} onChange={(e) => onChange && onChange(e.target.value)}>
+      <select
+        className="state-selector-select"
+        value={value || ""}
+        onChange={(e) => onChange && onChange(e.target.value)}
+      >
         <option value="">-- Select state --</option>
         {items.map((s, i) => (
           <option key={i} value={s}>

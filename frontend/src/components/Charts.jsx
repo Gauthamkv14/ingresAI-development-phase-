@@ -1,124 +1,98 @@
 // src/components/Charts.jsx
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from "react";
 
-/**
- * Charts.jsx
- * - Lazy-loads react-plotly.js to avoid pulling plotly into the initial bundle.
- * - Accepts `stateName` prop. If none, shows a friendly message.
- */
+/*
+  This component lazy-imports react-plotly.js (client-side only).
+  Props:
+    - small (bool) : render small sparkline
+    - stateName (string) : for LiveMonitoring to fetch state district data
+    - metric (string) : which metric to plot for LiveMonitoring
+    - districts (array) : optional district-level rows (for Visualizations)
+*/
 
-export default function Charts({ stateName }) {
-  const [PlotComp, setPlotComp] = useState(null); // holds the Plot component after dynamic import
-  const [districts, setDistricts] = useState([]);
-  const [loadingData, setLoadingData] = useState(false);
-  const mounted = useRef(true);
+function BasicPlaceholder({ text }) {
+  return <div style={{ padding: 24 }}>{text}</div>;
+}
+
+export default function Charts({ small = true, stateName, metric, districts }) {
+  const [Plot, setPlot] = useState(null);
+  const [plotReady, setPlotReady] = useState(false);
+  const [plotData, setPlotData] = useState(null);
 
   useEffect(() => {
-    mounted.current = true;
-    return () => { mounted.current = false; };
+    // lazy load Plotly only on client
+    let mounted = true;
+    (async () => {
+      if (typeof window === "undefined") return;
+      const mod = await import("react-plotly.js");
+      if (!mounted) return;
+      setPlot(() => mod.default);
+      setPlotReady(true);
+    })();
+    return () => { mounted = false; };
   }, []);
 
-  // load district-level data for the selected state
   useEffect(() => {
-    if (!stateName) {
-      setDistricts([]);
+    // Build data depending on props
+    if (districts && Array.isArray(districts)) {
+      // districts: array of { district, ...AGG_COLS }
+      // we'll plot first three meaningful series (Annual Extractable, Net Annual, Total Availability)
+      const x = districts.map(d => d.district);
+      const a = districts.map(d => d["Annual Extractable Ground water Resource (ham)_C"] ?? 0);
+      const b = districts.map(d => d["Net Annual Ground Water Availability for Future Use (ham)_C"] ?? 0);
+      const c = districts.map(d => d["Total Ground Water Availability in the area (ham)_Fresh"] ?? 0);
+      setPlotData({
+        layout: { margin: { t: 20 }, height: small ? 160 : 360, showlegend: !small },
+        data: [
+          { x, y: a, name: "Annual Extractable", type: "bar" },
+          { x, y: b, name: "Net Annual Available", type: "bar" },
+          { x, y: c, name: "Total Availability (Fresh)", type: "bar" },
+        ],
+      });
       return;
     }
 
-    setLoadingData(true);
-    fetch(`/api/state/${encodeURIComponent(stateName)}/districts`)
-      .then((r) => {
-        if (!r.ok) throw new Error('State districts not found');
-        return r.json();
-      })
-      .then((j) => {
-        if (!mounted.current) return;
-        setDistricts(j || []);
-      })
-      .catch(() => {
-        if (!mounted.current) return;
-        setDistricts([]);
-      })
-      .finally(() => { if (mounted.current) setLoadingData(false); });
-  }, [stateName]);
+    if (stateName) {
+      // request state districts and plot metric
+      (async () => {
+        try {
+          const r = await fetch(`/api/state/${encodeURIComponent(stateName)}/districts`);
+          if (!r.ok) { setPlotData(null); return; }
+          const rows = await r.json();
+          const x = rows.map(rw => rw.district);
+          const y = rows.map(rw => rw[metric] ?? 0);
+          setPlotData({
+            layout: { margin: { t: 20 }, height: 360, showlegend: false, xaxis: { tickangle: -45 } },
+            data: [{ x, y, type: "scatter", mode: "lines+markers", name: metric }],
+          });
+        } catch (err) {
+          console.error(err);
+          setPlotData(null);
+        }
+      })();
+      return;
+    }
 
-  // lazy-load Plot only when we have a state selected and the chart will be shown
-  useEffect(() => {
-    if (!stateName) return;
-    // if already loaded, skip
-    if (PlotComp) return;
-
-    let cancelled = false;
-
-    // dynamic import of react-plotly.js
-    import('react-plotly.js').then((mod) => {
-      if (cancelled) return;
-      // mod.default is the Plot component
-      setPlotComp(() => mod.default || mod);
-    }).catch((err) => {
-      console.error('Failed to load plotly component', err);
+    // default / small scrappy monthly trend demo (from dashboard summary)
+    setPlotData({
+      layout: { margin: { t: 20 }, height: small ? 140 : 260, showlegend: false },
+      data: [
+        { x: ["A","B","C","D"], y: [0,0,0,0], type: "scatter", mode: "lines+markers" }
+      ]
     });
+  }, [stateName, metric, districts, small]);
 
-    return () => { cancelled = true; };
-  }, [stateName, PlotComp]);
+  if (!plotReady) return <BasicPlaceholder text="Loading chart..." />;
 
-  if (!stateName) {
-    return <div style={{ padding: 12, color: 'var(--muted, #666)' }}>Select a state (click a state on the map) to show district trends.</div>;
-  }
-
-  if (loadingData) {
-    return <div style={{ padding: 12 }}>Loading district trends...</div>;
-  }
-
-  // prepare the series (exclude Extraction(Total) per your requirement)
-  const colA = "Annual Extractable Ground water Resource (ham)_C";
-  const colB = "Net Annual Ground Water Availability for Future Use (ham)_C";
-  const colC = "Total Ground Water Availability in the area (ham)_Fresh";
-
-  const labels = districts.map(d => d.district || '—');
-  const a = districts.map(d => d[colA] || 0);
-  const b = districts.map(d => d[colB] || 0);
-  const c = districts.map(d => d[colC] || 0);
-
-  // determine dark mode (we rely on html.dark toggle used by app)
-  const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
-
-  // fallback: if Plot component hasn't loaded yet, show a small placeholder
-  if (!PlotComp) {
-    return <div style={{ padding: 12 }}>Preparing charts…</div>;
-  }
-
-  // safe guard for empty data
-  if (!labels.length) {
-    return <div style={{ padding: 12 }}>No district data found for {stateName}.</div>;
-  }
-
-  const layout = {
-    barmode: 'group',
-    height: 380,
-    margin: { t: 30, b: 140, l: 40, r: 10 },
-    plot_bgcolor: isDark ? '#0b0e12' : '#fff',
-    paper_bgcolor: isDark ? '#0b0e12' : '#fff',
-    font: { color: isDark ? '#fff' : '#111' },
-    xaxis: { tickangle: -45, tickfont: { size: 11 } }
-  };
-
-  const data = [
-    { x: labels, y: a, type: 'bar', name: 'Annual Extractable' },
-    { x: labels, y: b, type: 'bar', name: 'Net Annual Available' },
-    { x: labels, y: c, type: 'bar', name: 'Total Availability (Fresh)' }
-  ];
-
-  const Plot = PlotComp;
+  if (!Plot || !plotData) return <BasicPlaceholder text="No data to display." />;
 
   return (
-    <div style={{ width: '100%' }}>
+    <div>
       <Plot
-        data={data}
-        layout={layout}
+        data={plotData.data}
+        layout={plotData.layout}
+        style={{ width: "100%" }}
         useResizeHandler={true}
-        style={{ width: '100%' }}
-        config={{ responsive: true, displaylogo: false }}
       />
     </div>
   );

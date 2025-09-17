@@ -1,5 +1,21 @@
-:root {
-  --bg-gradient: linear-gradient(135deg,#7b4aff,#b366ff);
+/* dark mode toggles */
+body.dark {
+  --bg: #0b0f13;
+  --panel: #0f1720;
+  --muted: #9aa4b2;
 }
-html.dark body { background: linear-gradient(180deg,#0a0b0d,#17181b); color:#eaeef2; }
-html.dark .searchbar { background: rgba(255,255,255,0.06); color:#ddd; }
+
+/* override header when dark (make it black-ish) */
+body.dark .app-header {
+  background: linear-gradient(90deg,#0b0b0b,#181818);
+  box-shadow: 0 6px 30px rgba(0,0,0,0.6);
+}
+
+body.dark .sidebar { background:#071023; color:#aeb8c8; }
+body.dark .card { background: #0b0f13; border-color: rgba(255,255,255,0.02); box-shadow: none; color:#e6eef8; }
+body.dark .main-search { background: rgba(255,255,255,0.03); color:#fff; }
+body.dark .site-footer { background: #071018; }
+
+body.dark .header-actions .dark-toggle { background: rgba(255,255,255,0.06); color: #ffd; }
+body.dark .dashboard-title, body.dark .dashboard-sub { color: #fff; }
+body.dark .overview-list, body.dark .stat-list { color: #ddd; }

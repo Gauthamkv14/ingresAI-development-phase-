@@ -1,0 +1,8 @@
+
+/* src/styles/live.css */
+.live-page { max-width:1100px; margin:0 auto; }
+.live-controls { display:flex; gap:18px; margin-bottom:12px; align-items:flex-end; }
+.live-controls label { display:block; margin-bottom:6px; color:#222; }
+.control-left select, .control-right select { padding:10px 14px; border-radius:8px; border:1px solid #ddd; min-width:220px; }
+.card { background:#fff; padding:20px; border-radius:12px; box-shadow: 0 6px 18px rgba(20,20,20,0.04); }
+.trends-area { margin-top:12px; }

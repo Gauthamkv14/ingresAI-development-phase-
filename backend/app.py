@@ -10,7 +10,6 @@ import pandas as pd
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 
 # optional redis
 try:
@@ -24,12 +23,26 @@ REDIS_HOST = os.environ.get("REDIS_HOST", "redis")
 REDIS_PORT = int(os.environ.get("REDIS_PORT", 6379))
 REDIS_DB = int(os.environ.get("REDIS_DB", 0))
 
+# Aggregation column names - preserve from CSV
 AGG_COLS = [
     "Annual Extractable Ground water Resource (ham)_C",
     "Net Annual Ground Water Availability for Future Use (ham)_C",
     "Total Ground Water Availability in Unconfined Aquifier (ham)_Fr",
     "Total Ground Water Availability in the area (ham)_Fresh",
 ]
+
+# Metric columns for metrics endpoint - adjust if your CSV uses different names
+METRIC_COLS = {
+    "rainfall": "Rainfall (mm)_C",
+    "annual_recharge": "Annual Ground water Recharge (ham)_C",
+    "extractable": "Annual Extractable Ground water Resource (ham)_C",
+    "extraction_total": "Ground Water Extraction for all uses (ha.m)_Total_26",
+    "stage_extraction_pct": "Stage of Ground Water Extraction (%)_C",
+    "net_avail_future": "Net Annual Ground Water Availability for Future Use (ham)_C",
+    "quality_tag": "Quality Tagging_Major Parameter Present_C",
+    # you may have 'Saline' columns -- include typical names present in CSV
+    "saline_cols": ["Saline", "Salinity", "Saline_2"]
+}
 
 app = FastAPI(title="IngresAI Backend")
 
@@ -59,6 +72,7 @@ if redis:
 else:
     print("[WARN] redis library not installed; skipping Redis (in-memory cache will be used).")
 
+
 def cache_set(key: str, value: Any, ttl: int = 3600):
     if redis_client:
         try:
@@ -67,6 +81,7 @@ def cache_set(key: str, value: Any, ttl: int = 3600):
         except Exception:
             pass
     _local_cache[key] = (time.time() + ttl, value)
+
 
 def cache_get(key: str):
     if redis_client:
@@ -85,6 +100,7 @@ def cache_get(key: str):
         del _local_cache[key]
         return None
     return value
+
 
 def find_existing_file_candidates() -> Dict[str, List[str]]:
     root = os.path.abspath(os.getcwd())
@@ -139,14 +155,17 @@ def startup_load_files():
     print(f"[INFO] Loading CSV from: {csv_path}")
     df = pd.read_csv(csv_path, low_memory=False)
     df.columns = [c.strip() for c in df.columns]
-    if 'STATE' not in df.columns and 'State/UT' in df.columns:
+
+    # Common renames if present
+    if 'State/UT' in df.columns and 'STATE' not in df.columns:
         df.rename(columns={'State/UT': 'STATE'}, inplace=True)
-    if 'DISTRICT' not in df.columns and 'District' in df.columns:
+    if 'District' in df.columns and 'DISTRICT' not in df.columns:
         df.rename(columns={'District': 'DISTRICT'}, inplace=True)
     if 'STATE' in df.columns:
         df['STATE'] = df['STATE'].astype(str).str.strip()
     if 'DISTRICT' in df.columns:
         df['DISTRICT'] = df['DISTRICT'].astype(str).str.strip()
+
     states_list = sorted(df['STATE'].dropna().unique().tolist())
     print(f"[INFO] CSV loaded: {len(df)} rows, {len(states_list)} states")
 
@@ -172,10 +191,12 @@ def startup_load_files():
     else:
         print("[WARN] GeoJSON not found; map endpoint will return 404.")
 
+
 def normalize_text(s: str) -> str:
     if not s:
         return ""
     return re.sub(r'[^A-Z0-9]', '', s.upper())
+
 
 def find_state_in_text(text: str) -> str:
     if not text:
@@ -191,6 +212,7 @@ def find_state_in_text(text: str) -> str:
         if matches:
             return normalized_map[matches[0]]
     return None
+
 
 def aggregate_state(state_name: str) -> Dict:
     key = f"agg_state::{state_name}"
@@ -211,6 +233,7 @@ def aggregate_state(state_name: str) -> Dict:
     cache_set(key, aggs, ttl=3600)
     return aggs
 
+
 def aggregate_state_districts(state_name: str) -> List[Dict]:
     key = f"agg_state_districts::{state_name}"
     cached = cache_get(key)
@@ -228,8 +251,46 @@ def aggregate_state_districts(state_name: str) -> List[Dict]:
     cache_set(key, rows, ttl=3600)
     return rows
 
-class ChatRequest(BaseModel):
-    query: str
+
+def compute_overview() -> Dict:
+    key = "overview_v2"
+    cached = cache_get(key)
+    if cached:
+        return cached
+    total_points = int(df.shape[0])
+    # choose a field that reflects availability for "safe/moderate/critical" like you had earlier
+    field = "Total Ground Water Availability in the area (ham)_Fresh"
+    if field not in df.columns:
+        # fallback: use first AGG_COLS existing
+        for c in AGG_COLS:
+            if c in df.columns:
+                field = c
+                break
+    vals = pd.to_numeric(df[field], errors='coerce').fillna(0)
+    safe = int((vals > 15000).sum())
+    moderate = int(((vals > 10000) & (vals <= 15000)).sum())
+    critical = int((vals <= 10000).sum())
+    # average groundwater level: try "Stage of Ground Water Extraction (%)_C" as a rough indicator
+    avg_level = None
+    if "Stage of Ground Water Extraction (%)_C" in df.columns:
+        try:
+            avg_level = float(pd.to_numeric(df["Stage of Ground Water Extraction (%)_C"], errors='coerce').dropna().mean())
+        except Exception:
+            avg_level = None
+    monitored_states = int(df['STATE'].nunique()) if 'STATE' in df.columns else 0
+    critical_count = int((pd.to_numeric(df.get("Stage of Ground Water Extraction (%)_C", 0), errors='coerce').fillna(0) > 70).sum())
+    out = {
+        "total_points": total_points,
+        "safe": safe,
+        "moderate": moderate,
+        "critical": critical,
+        "avg_groundwater_level": round(avg_level, 2) if avg_level is not None else None,
+        "monitored_states": monitored_states,
+        "critical_count": critical_count
+    }
+    cache_set(key, out, ttl=300)
+    return out
+
 
 @app.post("/api/chat")
 async def chat_endpoint(request: Request):
@@ -244,7 +305,6 @@ async def chat_endpoint(request: Request):
             payload = dict(form)
         except Exception:
             payload = {}
-
     query = None
     if 'query' in payload:
         query = payload.get('query')
@@ -262,10 +322,9 @@ async def chat_endpoint(request: Request):
                 query = raw_s
         except Exception:
             query = None
-
     if not query:
-        raise HTTPException(status_code=422, detail="No 'query' provided in request body. Send JSON: {\"query\":\"...\"}")
-
+        raise HTTPException(status_code=422, detail="No 'query' provided in request body.")
+    # Very simple NLU: look for state name, or requests for lists/metrics
     state = find_state_in_text(str(query))
     if state:
         ag = aggregate_state(state)
@@ -280,14 +339,15 @@ async def chat_endpoint(request: Request):
             "explanation": f"Sum of '{field}' across all districts in {state} is {value:.2f} ham.",
             "aggregates": ag
         }
-
     if any(k in str(query).lower() for k in ["list states", "what states", "states available", "which states"]):
         return {"intent": "list_states", "states": states_list}
-    return {"intent": "none", "answer": "Could not detect a state. Try: 'Show me Tamil Nadu groundwater data'."}
+    # else generic
+    return {"intent": "none", "answer": "Could not detect a state. Try: 'Show me Karnataka groundwater data'."}
+
 
 @app.get("/api/states")
 def get_states():
-    key = "states_overview"
+    key = "states_overview_v2"
     cached = cache_get(key)
     if cached:
         return cached
@@ -305,12 +365,14 @@ def get_states():
     cache_set(key, out, ttl=3600)
     return out
 
+
 @app.get("/api/state/{state_name}")
 def state_aggregate(state_name: str):
     try:
         return aggregate_state(state_name)
     except KeyError:
         raise HTTPException(status_code=404, detail=f"State {state_name} not found")
+
 
 @app.get("/api/state/{state_name}/districts")
 def state_districts(state_name: str):
@@ -319,21 +381,88 @@ def state_districts(state_name: str):
     except KeyError:
         raise HTTPException(status_code=404, detail=f"State {state_name} not found")
 
-@app.get("/api/overview")
-def overview():
-    key = "overview"
+
+@app.get("/api/state/{state_name}/metrics")
+def state_metrics(state_name: str):
+    """
+    Return aggregated metrics useful for plotting on frontend:
+      - rainfall average
+      - annual_recharge sum
+      - extractable sum
+      - extraction_total sum
+      - stage_extraction_pct average
+      - net_avail_future sum
+      - saline_count (rows where saline column indicates presence)
+    """
+    key = f"metrics::{state_name}"
     cached = cache_get(key)
     if cached:
         return cached
-    total_points = int(df.shape[0])
-    field = "Total Ground Water Availability in the area (ham)_Fresh"
-    vals = pd.to_numeric(df[field], errors='coerce').fillna(0)
-    safe = int((vals > 15000).sum())
-    moderate = int(((vals > 10000) & (vals <= 15000)).sum())
-    critical = int((vals <= 10000).sum())
-    out = {"total_points": total_points, "safe": safe, "moderate": moderate, "critical": critical}
-    cache_set(key, out, ttl=300)
+    sub = df[df['STATE'].str.upper() == state_name.upper()]
+    if sub.empty:
+        raise HTTPException(status_code=404, detail=f"State {state_name} not found")
+    def safe_sum(col):
+        if col in sub.columns:
+            return float(pd.to_numeric(sub[col], errors='coerce').fillna(0.0).sum())
+        return None
+    def safe_mean(col):
+        if col in sub.columns:
+            vals = pd.to_numeric(sub[col], errors='coerce').dropna()
+            if len(vals) == 0: return None
+            return float(vals.mean())
+        return None
+    # rainfall average (mm)
+    rainfall_col = METRIC_COLS.get("rainfall")
+    rainfall_avg = safe_mean(rainfall_col) if rainfall_col else None
+    # annual recharge sum
+    recharge_col = METRIC_COLS.get("annual_recharge")
+    recharge_sum = safe_sum(recharge_col) if recharge_col else None
+    # extractable sum
+    extractable_col = METRIC_COLS.get("extractable")
+    extractable_sum = safe_sum(extractable_col) if extractable_col else None
+    # extraction total
+    extraction_col = METRIC_COLS.get("extraction_total")
+    extraction_sum = safe_sum(extraction_col) if extraction_col else None
+    # stage extraction average
+    stage_avg = safe_mean(METRIC_COLS.get("stage_extraction_pct"))
+    # net available future sum
+    net_future_sum = safe_sum(METRIC_COLS.get("net_avail_future"))
+    # saline detection - count rows where any saline-like column > 0 or text contains saline
+    saline_count = 0
+    saline_candidates = METRIC_COLS.get("saline_cols", [])
+    for _, row in sub.iterrows():
+        found = False
+        for sc in saline_candidates:
+            if sc in sub.columns:
+                v = row.get(sc)
+                try:
+                    if pd.notna(v) and float(v) > 0:
+                        found = True; break
+                except Exception:
+                    # string indicator?
+                    if isinstance(v, str) and v.strip().lower() in ("yes", "saline", "true"):
+                        found = True; break
+        if found:
+            saline_count += 1
+    out = {
+        "state": state_name,
+        "rainfall_avg_mm": rainfall_avg,
+        "annual_recharge_sum_ham": recharge_sum,
+        "extractable_sum_ham": extractable_sum,
+        "extraction_sum_ham": extraction_sum,
+        "stage_extraction_pct_avg": stage_avg,
+        "net_avail_future_sum_ham": net_future_sum,
+        "saline_count": saline_count,
+        "num_districts": int(sub['DISTRICT'].nunique()) if 'DISTRICT' in sub.columns else int(sub.shape[0])
+    }
+    cache_set(key, out, ttl=3600)
     return out
+
+
+@app.get("/api/overview")
+def overview():
+    return compute_overview()
+
 
 @app.get("/api/geojson")
 def get_geojson():
@@ -341,9 +470,9 @@ def get_geojson():
         return geojson_data
     raise HTTPException(status_code=404, detail="GeoJSON not available on server")
 
+
 @app.get("/api/download")
 def download_csv():
-    # serve the CSV used on startup (csv_path is set on startup)
     if 'csv_path' in globals() and csv_path and os.path.exists(csv_path):
         return FileResponse(csv_path, media_type="text/csv", filename=os.path.basename(csv_path))
     raise HTTPException(status_code=404, detail="CSV not available for download.")

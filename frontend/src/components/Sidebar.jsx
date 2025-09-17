@@ -1,31 +1,33 @@
-// src/components/Sidebar.jsx
 import React from "react";
-import { NavLink } from "react-router-dom";
-import "./../styles/main.css";
+import "../styles/sidebar.css";
 
-export default function Sidebar() {
+export default function Sidebar({ active, onNavigate, dark }) {
+  const items = [
+    { id: "overview", label: "Overview", emoji: "📊" },
+    { id: "visualizations", label: "Visualizations", emoji: "📈" },
+    { id: "live", label: "Live Monitoring", emoji: "🛰️" },
+    { id: "chat", label: "AI Chat", emoji: "🤖" },
+    { id: "settings", label: "Settings", emoji: "⚙️" },
+  ];
+
   return (
-    <aside className="app-sidebar" aria-hidden={false}>
+    <aside className={`sidebar ${dark ? 'sidebar-dark' : ''}`}>
       <div className="sidebar-top">
-        <div className="logo">💧 <strong>INGRES AI Portal</strong></div>
+        <div className="logo">INGRES AI Portal</div>
       </div>
 
       <nav className="sidebar-nav">
-        <NavLink to="/" className="nav-item">
-          <span className="nav-emoji">📊</span> Overview
-        </NavLink>
-        <NavLink to="/visualizations" className="nav-item">
-          <span className="nav-emoji">📈</span> Visualizations
-        </NavLink>
-        <NavLink to="/live-monitoring" className="nav-item">
-          <span className="nav-emoji">🛰️</span> Live Monitoring
-        </NavLink>
-        <NavLink to="/ai-chat" className="nav-item">
-          <span className="nav-emoji">🤖</span> AI Chat
-        </NavLink>
-        <NavLink to="/settings" className="nav-item">
-          <span className="nav-emoji">⚙️</span> Settings
-        </NavLink>
+        {items.map(it => (
+          <button
+            key={it.id}
+            className={`sidebar-item ${active === it.id ? "active" : ""}`}
+            onClick={() => onNavigate(it.id)}
+            title={it.label}
+          >
+            <span className="emoji">{it.emoji}</span>
+            <span className="label">{it.label}</span>
+          </button>
+        ))}
       </nav>
     </aside>
   );

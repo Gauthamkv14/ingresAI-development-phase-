@@ -1,90 +1,51 @@
 // src/App.jsx
-import React, { useEffect, useState } from 'react';
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-import Dashboard from './pages/Dashboard.jsx';
-import Visualizations from './pages/Visualizations.jsx';
-import LiveMonitoring from './pages/LiveMonitoring.jsx';
-import ChatPage from './pages/ChatPage.jsx';
-import Settings from './pages/Settings.jsx';
-import Footer from './components/Footer.jsx';
-import ChatbotFloating from './components/ChatbotFloating.jsx';
-import './styles/index.css';
-import './styles/footer.css';
-import './styles/chatbotFloating.css';
-import './styles/darkmode.css';
+import React from "react";
+import "./App.css";
+import Dashboard from "./pages/Dashboard";
+import Visualizations from "./pages/Visualizations";
+import LiveMonitoring from "./pages/LiveMonitoring";
+import Chatbot from "./components/Chatbot";
 
-function App() {
-  const defaultDark = localStorage.getItem('dark') === 'true';
-  const [dark, setDark] = useState(defaultDark);
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', dark);
-    localStorage.setItem('dark', dark);
-  }, [dark]);
+export default function App() {
+  // simple routing using hash for demo (keeps the app easy)
+  const [route, setRoute] = React.useState(window.location.hash.replace("#","") || "overview");
+  React.useEffect(() => {
+    const onHash = () => setRoute(window.location.hash.replace("#","") || "overview");
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
 
   return (
     <div className="app-shell">
       <header className="app-header">
-        <div className="header-inner">
-          <div className="brand" onClick={() => navigate('/')}>
-            <span className="logo-emoji">💧</span>
-            <div className="brand-text">
-              <div className="brand-title">INGRES AI Portal</div>
-              <div className="brand-sub">AI-powered groundwater intelligence</div>
-            </div>
-          </div>
-
-          <div className="header-actions">
-            <button
-              className="theme-toggle"
-              onClick={() => setDark(d => !d)}
-              title="Toggle dark mode"
-            >
-              {dark ? '☀️ Light' : '🌙 Dark'}
-            </button>
-          </div>
-        </div>
+        <div className="logo">INGRES AI Portal</div>
+        <nav className="top-nav">
+          <a href="#overview">Overview</a>
+          <a href="#visualizations">Visualizations</a>
+          <a href="#live">Live Monitoring</a>
+          <a href="#chat">AI Chat</a>
+        </nav>
       </header>
 
-      <div className="app-body">
-        <aside className="sidebar">
-          <nav>
-            <NavButton to="/">Overview</NavButton>
-            <NavButton to="/visualizations">Visualizations</NavButton>
-            <NavButton to="/monitoring">Live Monitoring</NavButton>
-            <NavButton to="/chat">AI Chat</NavButton>
-            <NavButton to="/settings">Settings</NavButton>
-          </nav>
+      <div className="app-layout">
+        <aside className="left-sidebar">
+          <div className="brand">INGRES AI Portal</div>
+          <ul>
+            <li><a href="#overview">Overview</a></li>
+            <li><a href="#visualizations">Visualizations</a></li>
+            <li><a href="#live">Live Monitoring</a></li>
+            <li><a href="#chat">AI Chat</a></li>
+            <li><a href="#settings">Settings</a></li>
+          </ul>
         </aside>
 
-        <main className="main-area">
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/visualizations" element={<Visualizations />} />
-            <Route path="/monitoring" element={<LiveMonitoring />} />
-            <Route path="/chat" element={<ChatPage />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+        <main className="content-area">
+          {route === "overview" && <Dashboard />}
+          {route === "visualizations" && <Visualizations />}
+          {route === "live" && <LiveMonitoring />}
+          {route === "chat" && <Chatbot />}
         </main>
       </div>
-
-      <Footer />
-
-      <ChatbotFloating />
     </div>
   );
 }
-
-function NavButton({ to, children }) {
-  const navigate = useNavigate();
-  const onClick = () => navigate(to);
-  return (
-    <button className="nav-btn" onClick={onClick}>
-      {children}
-    </button>
-  );
-}
-
-export default App;
