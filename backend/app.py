@@ -11,7 +11,10 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-# --- Configuration / column names ------------------------------------------------
+ENV_INGRIS_CSV = os.environ.get("INGRIS_CSV", "")
+ENV_GEOJSON = os.environ.get("INGRIS_GEOJSON", "")
+
+# Aggregation column names - preserve from CSV
 AGG_COLS = [
     "Annual Extractable Ground water Resource (ham)_C",
     "Net Annual Ground Water Availability for Future Use (ham)_C",
@@ -19,6 +22,7 @@ AGG_COLS = [
     "Total Ground Water Availability in the area (ham)_Fresh",
 ]
 
+# Metric columns for metrics endpoint - adjust if your CSV uses different names
 METRIC_COLS = {
     "rainfall": "Rainfall (mm)_C",
     "annual_recharge": "Annual Ground water Recharge (ham)_C",
@@ -27,22 +31,21 @@ METRIC_COLS = {
     "stage_extraction_pct": "Stage of Ground Water Extraction (%)_C",
     "net_avail_future": "Net Annual Ground Water Availability for Future Use (ham)_C",
     "quality_tag": "Quality Tagging_Major Parameter Present_C",
+    # some CSVs might have saline-related columns
     "saline_cols": ["Saline", "Salinity", "Saline_2"]
 }
 
-# --- App init ------------------------------------------------------------------
-app = FastAPI(title="IngresAI Backend (no-redis)")
+app = FastAPI(title="IngresAI Backend")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # for local dev; restrict in production
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# --- Simple in-memory cache ----------------------------------------------------
-_local_cache: Dict[str, Any] = {}
+_local_cache = {}
 
 def cache_set(key: str, value: Any, ttl: int = 3600):
     _local_cache[key] = (time.time() + ttl, value)
@@ -57,14 +60,11 @@ def cache_get(key: str):
         return None
     return value
 
-# --- File discovery ------------------------------------------------------------
 def find_existing_file_candidates() -> Dict[str, List[str]]:
     root = os.path.abspath(os.getcwd())
     csv_candidates = []
-    # allow override by env var
-    env_csv = os.environ.get("INGRIS_CSV")
-    if env_csv:
-        csv_candidates.append(env_csv)
+    if ENV_INGRIS_CSV:
+        csv_candidates.append(ENV_INGRIS_CSV)
     csv_candidates += [
         os.path.join(root, "data", "ingris_report.csv"),
         os.path.join(root, "backend", "data", "ingris_report.csv"),
@@ -72,10 +72,14 @@ def find_existing_file_candidates() -> Dict[str, List[str]]:
         os.path.join(root, "ingris_report.csv"),
         os.path.join(root, "..", "data", "ingris_report.csv"),
     ]
+    seen = set(); csv_list = []
+    for p in csv_candidates:
+        if p and p not in seen:
+            seen.add(p); csv_list.append(p)
+
     geo_candidates = []
-    env_geo = os.environ.get("INGRIS_GEOJSON")
-    if env_geo:
-        geo_candidates.append(env_geo)
+    if ENV_GEOJSON:
+        geo_candidates.append(ENV_GEOJSON)
     geo_candidates += [
         os.path.join(root, "data", "india_districts.geojson"),
         os.path.join(root, "backend", "data", "india_districts.geojson"),
@@ -83,16 +87,13 @@ def find_existing_file_candidates() -> Dict[str, List[str]]:
         os.path.join(root, "backend", "data", "india_states.geojson"),
         os.path.join(root, "india_districts.geojson"),
     ]
-    # dedupe while preserving order
-    def dedupe(lst):
-        seen = set(); out = []
-        for p in lst:
-            if p and p not in seen:
-                seen.add(p); out.append(p)
-        return out
-    return {"csv": dedupe(csv_candidates), "geo": dedupe(geo_candidates)}
+    seeng = set(); geo_list = []
+    for p in geo_candidates:
+        if p and p not in seeng:
+            seeng.add(p); geo_list.append(p)
 
-# --- Startup: load CSV + geojson -----------------------------------------------
+    return {"csv": csv_list, "geo": geo_list}
+
 @app.on_event("startup")
 def startup_load_files():
     global df, states_list, geojson_data, normalized_map, csv_path
@@ -112,7 +113,7 @@ def startup_load_files():
     df = pd.read_csv(csv_path, low_memory=False)
     df.columns = [c.strip() for c in df.columns]
 
-    # Common column normalizations
+    # Common renames if present
     if 'State/UT' in df.columns and 'STATE' not in df.columns:
         df.rename(columns={'State/UT': 'STATE'}, inplace=True)
     if 'District' in df.columns and 'DISTRICT' not in df.columns:
@@ -125,12 +126,11 @@ def startup_load_files():
     states_list = sorted(df['STATE'].dropna().unique().tolist())
     print(f"[INFO] CSV loaded: {len(df)} rows, {len(states_list)} states")
 
-    # build normalized map for fuzzy matching
+    # Build normalized map for fuzzy matching (normalized_name -> canonical)
     def normalize(s: str) -> str:
         return re.sub(r'[^A-Z0-9]', '', s.upper())
     normalized_map = { normalize(s): s for s in states_list }
 
-    # load geojson if present
     geojson_data = None
     geo_path = None
     for p in candidates["geo"]:
@@ -146,9 +146,8 @@ def startup_load_files():
             print("[WARN] Failed to load geojson:", e)
             geojson_data = None
     else:
-        print("[WARN] GeoJSON not found; /api/geojson will 404.")
+        print("[WARN] GeoJSON not found; /api/geojson will return 404.")
 
-# --- Helper functions ---------------------------------------------------------
 def normalize_text(s: str) -> str:
     if not s:
         return ""
@@ -241,16 +240,27 @@ def compute_overview() -> Dict:
     cache_set(key, out, ttl=300)
     return out
 
-# --- Chat endpoint (enhanced) -------------------------------------------------
+# A deterministic mapping between friendly keys and CSV columns
+FRIENDLY_METRIC_MAP = {
+    "rainfall": ("Rainfall (mm)_C", "rainfall_avg_mm", "Rainfall (mm)"),
+    "recharge": ("Annual Ground water Recharge (ham)_C", "annual_recharge_sum_ham", "Annual recharge (ham)"),
+    "extractable": ("Annual Extractable Ground water Resource (ham)_C", "extractable_sum_ham", "Annual extractable (ham)"),
+    "total_availability": ("Total Ground Water Availability in the area (ham)_Fresh", "total_availability_sum_ham", "Total availability (ham)"),
+    "extraction": ("Ground Water Extraction for all uses (ha.m)_Total_26", "extraction_sum_ham", "Ground water extraction (ha.m)"),
+    "stage_extraction_pct": ("Stage of Ground Water Extraction (%)_C", "stage_extraction_pct_avg", "Stage extraction (%)"),
+    "net_future": ("Net Annual Ground Water Availability for Future Use (ham)_C", "net_avail_future_sum_ham", "Net avail. (ham)"),
+    "quality": ("Quality Tagging_Major Parameter Present_C", "quality_count", "Quality tagging (flag)"),
+}
+
 @app.post("/api/chat")
 async def chat_endpoint(request: Request):
     """
     Enhanced chat endpoint:
      - Detects single-state requests and returns structured metrics.
      - Detects comparison requests between two states and returns both states' metrics.
-     - Detects district-level trend requests (if "district" or similar phrases present).
+     - Detects district-level trend requests.
      - Detects a 'list states' intent.
-     - Returns structured JSON for frontend to render.
+     - Returns structured JSON for frontend to render concise answers.
     """
     payload = {}
     try:
@@ -310,35 +320,16 @@ async def chat_endpoint(request: Request):
 
     two = find_two_states(q)
 
-    metric_lookup = {
-        "rainfall": METRIC_COLS.get("rainfall"),
-        "annual recharge": METRIC_COLS.get("annual_recharge"),
-        "recharge": METRIC_COLS.get("annual_recharge"),
-        "extractable": METRIC_COLS.get("extractable"),
-        "annual extractable": METRIC_COLS.get("extractable"),
-        "total availability": "Total Ground Water Availability in the area (ham)_Fresh",
-        "availability": "Total Ground Water Availability in the area (ham)_Fresh",
-        "extraction": METRIC_COLS.get("extraction_total"),
-        "stage extraction": METRIC_COLS.get("stage_extraction_pct"),
-        "stage": METRIC_COLS.get("stage_extraction_pct"),
-        "net available": METRIC_COLS.get("net_avail_future"),
-        "net availability": METRIC_COLS.get("net_avail_future"),
-        "quality": METRIC_COLS.get("quality_tag"),
-        "quality tag": METRIC_COLS.get("quality_tag"),
-        "wells": "No_of_wells"
-    }
-
     def build_state_metrics(sname):
-        """Return structured metrics for a state."""
         try:
             ag = aggregate_state(sname)
         except KeyError:
             raise HTTPException(status_code=404, detail=f"State {sname} not found")
         metrics = {}
-        # AGG_COLS included
+        # AGG_COLS (as present)
         for col in AGG_COLS:
             metrics[col] = ag.get(col)
-        # compute extra metrics from df
+        # additional metrics via safe operations
         sub = df[df['STATE'].str.upper() == sname.upper()]
         def safe_sum(col):
             if col and col in sub.columns:
@@ -347,25 +338,43 @@ async def chat_endpoint(request: Request):
         def safe_mean(col):
             if col and col in sub.columns:
                 vals = pd.to_numeric(sub[col], errors='coerce').dropna()
-                if len(vals) == 0:
-                    return None
+                if len(vals) == 0: return None
                 return float(vals.mean())
             return None
+
         metrics['rainfall_avg_mm'] = safe_mean(METRIC_COLS.get("rainfall"))
         metrics['annual_recharge_sum_ham'] = safe_sum(METRIC_COLS.get("annual_recharge"))
         metrics['extractable_sum_ham'] = safe_sum(METRIC_COLS.get("extractable"))
         metrics['extraction_sum_ham'] = safe_sum(METRIC_COLS.get("extraction_total"))
         metrics['stage_extraction_pct_avg'] = safe_mean(METRIC_COLS.get("stage_extraction_pct"))
         metrics['net_avail_future_sum_ham'] = safe_sum(METRIC_COLS.get("net_avail_future"))
-        metrics['quality_count'] = int(sub[METRIC_COLS.get("quality_tag")].notna().sum()) if METRIC_COLS.get("quality_tag") in sub.columns else 0
+
+        # quality count - count rows where quality tag is present/non-empty
+        quality_col = METRIC_COLS.get("quality_tag")
+        metrics['quality_count'] = int(sub[quality_col].notna().sum()) if quality_col in sub.columns else 0
+
         # wells/tanks detection
         metrics['wells_total'] = None
         for candidate in ("No_of_wells", "WELLS", "wells", "Num_Wells", "No_of_wells/observation"):
             if candidate in sub.columns:
                 metrics['wells_total'] = int(pd.to_numeric(sub[candidate], errors='coerce').fillna(0).sum())
                 break
+
         metrics['num_districts'] = int(sub['DISTRICT'].nunique()) if 'DISTRICT' in sub.columns else int(sub.shape[0])
-        return {"state": sname, "metrics": metrics}
+
+        # add friendly labels mapping - deterministic labels for frontend/chatbot
+        friendly = {}
+        for key, (col_name, out_key, label) in FRIENDLY_METRIC_MAP.items():
+            # prefer computed metric if out_key exists in metrics, else fallback to col_name aggregated value
+            val = metrics.get(out_key) if out_key in metrics else None
+            if val is None and col_name in sub.columns:
+                # fallback to sum/mean depending on column
+                try:
+                    val = float(pd.to_numeric(sub[col_name], errors='coerce').fillna(0.0).sum())
+                except Exception:
+                    val = None
+            friendly[key] = {"col": col_name, "value": val, "label": label}
+        return {"state": sname, "metrics": metrics, "friendly": friendly}
 
     # Comparison intent
     if two:
@@ -374,41 +383,75 @@ async def chat_endpoint(request: Request):
         rb = build_state_metrics(b)
         return {"intent": "compare_states", "left": ra, "right": rb, "explanation": f"Comparison between {a} and {b}"}
 
-    # Single-state handling
+    # State-level handling
     if state:
-        # detect metric keywords
-        matched_metrics = []
-        for k, v in metric_lookup.items():
-            if k in qlow and v:
-                matched_metrics.append((k, v))
-        # district-level request
-        if any(tok in qlow for tok in ["district", "districts", "per district", "by district", "district-wise", "district wise", "for each district"]):
+        # metric keywords mapping
+        metric_lookup = {
+            "rain": "rainfall",
+            "rainfall": "rainfall",
+            "recharge": "recharge",
+            "extract": "extractable",
+            "extractable": "extractable",
+            "availability": "total_availability",
+            "total availability": "total_availability",
+            "total": "total_availability",
+            "extraction": "extraction",
+            "stage": "stage_extraction_pct",
+            "stress": "stage_extraction_pct",
+            "net": "net_future",
+            "quality": "quality",
+            "wells": "wells_total",
+            "compare": None
+        }
+
+        # detect district-level trend requests
+        if any(tok in qlow for tok in ["district", "districts", "per district", "by district", "district-wise", "for each district"]):
             rows = aggregate_state_districts(state)
             return {"intent": "state_districts", "state": state, "columns": AGG_COLS, "districts": rows}
-        # specific metrics requested
-        if matched_metrics:
-            s_metrics = build_state_metrics(state)
-            result = {"state": state, "requested": {}, "all": s_metrics["metrics"]}
-            for name, col in matched_metrics:
-                # try to fetch value from computed metrics if available
-                if isinstance(col, str):
-                    result["requested"][name] = s_metrics["metrics"].get(col) if col in s_metrics["metrics"] else s_metrics["metrics"].get(col)
+
+        # detect requested specific metric keywords from query
+        requested = {}
+        for term, canonical in metric_lookup.items():
+            if canonical and term in qlow:
+                # add friendly metric
+                fmap = FRIENDLY_METRIC_MAP.get(canonical)
+                if fmap:
+                    requested[canonical] = fmap[0]  # column name
                 else:
-                    result["requested"][name] = None
-            return {"intent": "state_metrics", "state": state, "result": result, "explanation": f"Metrics for {state}"}
-        # default: full state overview
+                    requested[canonical] = None
+
+        # build full metrics for the state
         s_metrics = build_state_metrics(state)
+
+        # If user asked for explicit metrics, return only those keys in a tidy response
+        if requested:
+            result = {"state": state, "requested": {}, "friendly": {}}
+            for can_key in requested.keys():
+                friendly_entry = s_metrics["friendly"].get(can_key)
+                if friendly_entry:
+                    result["requested"][can_key] = friendly_entry["value"]
+                    result["friendly"][can_key] = {"label": friendly_entry["label"], "col": friendly_entry["col"]}
+                else:
+                    # fallback to metrics dict
+                    try:
+                        result["requested"][can_key] = s_metrics["metrics"].get(can_key)
+                    except Exception:
+                        result["requested"][can_key] = None
+            # include compact metrics object
+            result["metrics"] = s_metrics["metrics"]
+            return {"intent": "state_metrics", "state": state, "result": result, "explanation": f"Metrics for {state}"}
+
+        # Default: full state overview (structured)
         try:
             districts = aggregate_state_districts(state)
         except Exception:
             districts = []
-        return {"intent": "state_overview", "state": state, "metrics": s_metrics["metrics"], "districts": districts,
+        return {"intent": "state_overview", "state": state, "metrics": s_metrics["metrics"], "friendly": s_metrics["friendly"], "districts": districts,
                 "explanation": f"Structured metrics for {state} (use keywords like 'rainfall', 'recharge', 'extractable', 'extraction', 'stage', 'net available')."}
 
     # fallback
     return {"intent": "none", "answer": "I couldn't detect a state or metric in your query. Try: 'Show Karnataka rainfall and recharge' or 'Compare Karnataka and Kerala'."}
 
-# --- Standard endpoints -------------------------------------------------------
 @app.get("/api/states")
 def get_states():
     key = "states_overview_v2"
@@ -462,29 +505,39 @@ def state_metrics(state_name: str):
             if len(vals) == 0: return None
             return float(vals.mean())
         return None
-    # saline / quality detection
+    rainfall_col = METRIC_COLS.get("rainfall")
+    rainfall_avg = safe_mean(rainfall_col) if rainfall_col else None
+    recharge_col = METRIC_COLS.get("annual_recharge")
+    recharge_sum = safe_sum(recharge_col) if recharge_col else None
+    extractable_col = METRIC_COLS.get("extractable")
+    extractable_sum = safe_sum(extractable_col) if extractable_col else None
+    extraction_col = METRIC_COLS.get("extraction_total")
+    extraction_sum = safe_sum(extraction_col) if extraction_col else None
+    stage_avg = safe_mean(METRIC_COLS.get("stage_extraction_pct"))
+    net_future_sum = safe_sum(METRIC_COLS.get("net_avail_future"))
     saline_count = 0
     saline_candidates = METRIC_COLS.get("saline_cols", [])
     for _, row in sub.iterrows():
+        found = False
         for sc in saline_candidates:
             if sc in sub.columns:
                 v = row.get(sc)
                 try:
                     if pd.notna(v) and float(v) > 0:
-                        saline_count += 1
-                        break
+                        found = True; break
                 except Exception:
                     if isinstance(v, str) and v.strip().lower() in ("yes", "saline", "true"):
-                        saline_count += 1
-                        break
+                        found = True; break
+        if found:
+            saline_count += 1
     out = {
         "state": state_name,
-        "rainfall_avg_mm": safe_mean(METRIC_COLS.get("rainfall")),
-        "annual_recharge_sum_ham": safe_sum(METRIC_COLS.get("annual_recharge")),
-        "extractable_sum_ham": safe_sum(METRIC_COLS.get("extractable")),
-        "extraction_sum_ham": safe_sum(METRIC_COLS.get("extraction_total")),
-        "stage_extraction_pct_avg": safe_mean(METRIC_COLS.get("stage_extraction_pct")),
-        "net_avail_future_sum_ham": safe_sum(METRIC_COLS.get("net_avail_future")),
+        "rainfall_avg_mm": rainfall_avg,
+        "annual_recharge_sum_ham": recharge_sum,
+        "extractable_sum_ham": extractable_sum,
+        "extraction_sum_ham": extraction_sum,
+        "stage_extraction_pct_avg": stage_avg,
+        "net_avail_future_sum_ham": net_future_sum,
         "saline_count": saline_count,
         "num_districts": int(sub['DISTRICT'].nunique()) if 'DISTRICT' in sub.columns else int(sub.shape[0])
     }

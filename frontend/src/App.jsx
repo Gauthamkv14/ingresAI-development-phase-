@@ -21,10 +21,16 @@ function App() {
   const [searchResults, setSearchResults] = useState(null);
   const [selectedLanguage, setSelectedLanguage] = useState('en');
 
-  // to sync clicked state from map to Charts/LiveMonitor
+  // the state that Trends should display (selected via dropdown or map click)
+  const [selectedTrendState, setSelectedTrendState] = useState('');
+
+  // store last map click info if needed elsewhere
   const [lastMapClick, setLastMapClick] = useState(null);
 
-  // helpers
+  // ephemeral banner
+  const [banner, setBanner] = useState({ show: false, text: '' });
+
+  // helper to find CSV columns robustly
   const find = (row, candidates = []) => {
     for (const c of candidates) {
       if (row[c] !== undefined && row[c] !== '') return row[c];
@@ -45,25 +51,114 @@ function App() {
     loadCSV();
   }, []);
 
-  // listen for floating button to open chat
+  // open chat floating button listener
   useEffect(() => {
     const handler = () => setActiveTab('chat');
     window.addEventListener('openChat', handler);
     return () => window.removeEventListener('openChat', handler);
   }, []);
 
-  // listen for state click on map
+  // map click -> resolve district -> find its state -> navigate to Trends in Overview
   useEffect(() => {
     const handler = (e) => {
-      const detail = e.detail || {};
-      if (detail.state) {
-        setLastMapClick(detail);
-        setActiveTab('charts'); // open charts tab by default
+      const detail = (e && e.detail) ? e.detail : {};
+      const normalize = (s) => (s || '').toString().trim();
+
+      // Build a set of known states (canonical values from CSV) for quick checking
+      const statesList = Array.from(new Set(groundwaterData.map(r => (r.state || '').toString().trim()).filter(Boolean)));
+
+      // Candidate district/name we received from the map (the map may put district in detail.name or detail.district)
+      const districtCandidate = normalize(detail.district || detail.name || detail.label || detail.place || detail.feature || "");
+
+      // Candidate state if map provided one
+      const providedStateCandidate = normalize(detail.state || "");
+
+      let resolvedState = null;
+
+      // 1) If we have a districtCandidate, attempt to find the STATE by searching CSV rows (best effort)
+      if (districtCandidate) {
+        const dLow = districtCandidate.toLowerCase();
+
+        // Try exact then contains then partial token match
+        let match = groundwaterData.find(r => {
+          const rD = normalize(r.district || r.DISTRICT || r.District || r['District Name'] || r['district_name']).toLowerCase();
+          return rD && (rD === dLow);
+        });
+
+        if (!match) {
+          match = groundwaterData.find(r => {
+            const rD = normalize(r.district || r.DISTRICT || r.District || r['District Name'] || r['district_name']).toLowerCase();
+            return rD && (rD.includes(dLow) || dLow.includes(rD));
+          });
+        }
+
+        if (!match && districtCandidate.includes(' ')) {
+          // Try fuzzy token match (some map labels may be 'Hassan district' or similar)
+          const tokens = districtCandidate.split(/\s+/).map(t => t.toLowerCase()).filter(Boolean);
+          for (const r of groundwaterData) {
+            const rD = normalize(r.district || '').toLowerCase();
+            if (!rD) continue;
+            for (const t of tokens) {
+              if (rD.includes(t) || t.includes(rD)) {
+                match = r; break;
+              }
+            }
+            if (match) break;
+          }
+        }
+
+        if (match && match.state) {
+          resolvedState = normalize(match.state);
+          // Use the exact canonical state string from the row (preserve casing)
+          resolvedState = match.state.toString().trim();
+        }
       }
+
+      // 2) If we didn't resolve via district, but map provided a state that matches our known states -> accept it
+      if (!resolvedState && providedStateCandidate) {
+        const pLow = providedStateCandidate.toLowerCase();
+        // find canonical match from statesList
+        const canon = statesList.find(s => s.toLowerCase() === pLow) || statesList.find(s => s.toLowerCase().includes(pLow) || pLow.includes(s.toLowerCase()));
+        if (canon) resolvedState = canon;
+        else resolvedState = providedStateCandidate; // last fallback - use as-is
+      }
+
+      // 3) final fallback: if districtCandidate itself equals a state (edge case), accept it
+      if (!resolvedState && districtCandidate) {
+        const p = statesList.find(s => s.toLowerCase() === districtCandidate.toLowerCase());
+        if (p) resolvedState = p;
+      }
+
+      if (!resolvedState) {
+        // nothing resolved — bail (do nothing)
+        return;
+      }
+
+      // store last click (district + resolved state)
+      setLastMapClick({ district: districtCandidate || null, state: resolvedState });
+
+      // set selected trend state so Trends chart displays immediately
+      setSelectedTrendState(resolvedState);
+
+      // navigate to Overview (where Trends is)
+      setActiveTab('overview');
+
+      // show ephemeral banner with STATE name (uppercase)
+      const bannerText = `Showing trends for ${resolvedState.toString().toUpperCase()}`;
+      setBanner({ show: true, text: bannerText });
+      setTimeout(() => setBanner(prev => ({ ...prev, fading: true })), 900);
+      setTimeout(() => setBanner({ show: false, text: '' }), 1400);
+
+      // scroll to trends card
+      setTimeout(() => {
+        const el = document.querySelector('.trends-card');
+        if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 250);
     };
+
     window.addEventListener('mapStateClick', handler);
     return () => window.removeEventListener('mapStateClick', handler);
-  }, []);
+  }, [groundwaterData]);
 
   const loadCSV = async () => {
     setLoading(true);
@@ -108,7 +203,6 @@ function App() {
 
       setGroundwaterData(normalizedRows);
 
-      // compute monthly trend from 'level' only if present
       const withLevel = normalizedRows.filter(r => r.level !== null && r.level !== undefined);
       const avg =
         withLevel.length > 0
@@ -134,7 +228,6 @@ function App() {
 
       const summary = {
         monitored_states: new Set(normalizedRows.map(r => r.state).filter(Boolean)).size,
-        // remove showing "Avg GW level" globally — keep null so UI won't show '-'
         average_groundwater_level: null,
         critical_count: normalizedRows.filter(r => r.level !== null && r.level < 10).length,
         monthly_trends: monthly,
@@ -179,7 +272,7 @@ function App() {
       (r.state && r.state.toLowerCase().includes(qLower))
     );
     setSearchResults({ type: 'text', count: res.length, results: res });
-    setActiveTab('map');
+    setActiveTab('charts');
   };
 
   const activeData = React.useMemo(() => {
@@ -204,11 +297,11 @@ function App() {
 
                 <div className="card trends-card">
                   <h3>Trends</h3>
-                  {/* Trends: show both Extractable and Total Availability for selected state (if any).
-                      Pass the clicked state via `initialState`. */}
+                  {/* key forces remount so Charts will initialise properly when selectedTrendState changes */}
                   <Charts
+                    key={`trends-${selectedTrendState || 'none'}`}
                     mode="overview-trends"
-                    initialState={lastMapClick?.state || ""}
+                    initialState={selectedTrendState}
                     groundwaterData={groundwaterData}
                   />
                 </div>
@@ -241,34 +334,20 @@ function App() {
           </div>
         );
 
-      case 'map':
-        return (
-          <div>
-            <div className="mb-4 flex justify-between items-center">
-              <h2 className="text-2xl font-semibold">Interactive Map</h2>
-              <div className="flex gap-2">
-                <button onClick={() => setSearchResults(null)} className="btn">Show all</button>
-              </div>
-            </div>
-            <IndiaMap data={activeData} />
-          </div>
-        );
-
       case 'charts':
         return (
           <div>
             <h2 className="text-2xl font-semibold mb-4">Charts & Analytics</h2>
-            {/* Charts page: pass groundwaterData for district metric computation */}
             <Charts
               mode="state-metric"
-              initialState={lastMapClick?.state || ""}
+              initialState={selectedTrendState || ""}
               groundwaterData={groundwaterData}
             />
           </div>
         );
 
       case 'live':
-        return <LiveMonitor initialState={lastMapClick?.state || ""} />;
+        return <LiveMonitor initialState={selectedTrendState || ""} />;
 
       case 'chat':
         return <Chatbot />;
@@ -315,10 +394,35 @@ function App() {
         </div>
       </header>
 
+      {/* ephemeral banner */}
+      <div
+        aria-live="polite"
+        style={{
+          position: 'fixed',
+          top: 18,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 9999,
+          transition: 'opacity 300ms ease, transform 300ms ease',
+          opacity: banner.show ? 1 : 0,
+          pointerEvents: 'none'
+        }}
+      >
+        <div style={{
+          background: 'rgba(0,0,0,0.75)',
+          color: '#fff',
+          padding: '8px 14px',
+          borderRadius: 999,
+          boxShadow: '0 6px 18px rgba(0,0,0,0.18)',
+          fontWeight: 600
+        }}>
+          {banner.text}
+        </div>
+      </div>
+
       <main className="main-content">
         <nav className="page-tabs">
           <button className={`tab ${activeTab === 'overview' ? 'active' : ''}`} onClick={() => setActiveTab('overview')}>Overview</button>
-          <button className={`tab ${activeTab === 'map' ? 'active' : ''}`} onClick={() => setActiveTab('map')}>Map</button>
           <button className={`tab ${activeTab === 'charts' ? 'active' : ''}`} onClick={() => setActiveTab('charts')}>Charts</button>
           <button className={`tab ${activeTab === 'live' ? 'active' : ''}`} onClick={() => setActiveTab('live')}>Live Monitoring</button>
           <button className={`tab ${activeTab === 'chat' ? 'active' : ''}`} onClick={() => setActiveTab('chat')}>Chat</button>
