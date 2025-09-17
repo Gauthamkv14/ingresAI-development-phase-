@@ -1,21 +1,29 @@
-import React, { useState } from "react";
-import "./../styles/chatbotFloating.css";
-import ChatInterface from "./ChatInterface";
-import { FaRobot } from "react-icons/fa";
+// src/components/ChatbotFloating.jsx
+import React, { useState } from 'react';
+import Chatbot from './Chatbot.jsx';
+import '../styles/chatbotFloating.css';
 
 export default function ChatbotFloating() {
   const [open, setOpen] = useState(false);
+
   return (
-    <div className={`chatbot-floating ${open ? "open" : ""}`}>
+    <>
+      <div className={`chatbot-floating ${open ? 'open' : ''}`} onClick={() => setOpen(true)}>
+        <div className="robot">🤖</div>
+        <div className="bubble">Ask INGRES AI</div>
+      </div>
+
       {open && (
-        <div className="chat-panel">
-          <ChatInterface />
+        <div className="chatbot-modal" role="dialog" aria-modal="true">
+          <div className="chatbot-header">
+            <div>INGRES AI Assistant</div>
+            <button className="close-btn" onClick={() => setOpen(false)}>✕</button>
+          </div>
+          <div className="chatbot-panel">
+            <Chatbot onClose={() => setOpen(false)} />
+          </div>
         </div>
       )}
-      <button className="chat-toggle" onClick={() => setOpen(v => !v)} aria-label="Toggle chat">
-        <span className="robot-emoji">🤖</span>
-        <span className="bubble-text">Ask INGRES AI</span>
-      </button>
-    </div>
+    </>
   );
 }

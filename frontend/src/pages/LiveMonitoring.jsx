@@ -1,82 +1,36 @@
 // src/pages/LiveMonitoring.jsx
-import React, { useEffect, useState } from "react";
-import Plot from "react-plotly.js";
+import React, { useEffect, useState } from 'react';
 
 export default function LiveMonitoring() {
   const [states, setStates] = useState([]);
-  const [selected, setSelected] = useState("");
-  const [districts, setDistricts] = useState([]);
+  const [sel, setSel] = useState('');
+  const [data, setData] = useState(null);
 
   useEffect(() => {
-    fetch("/api/states")
-      .then((r) => r.json())
-      .then((data) => setStates(data.map((s) => s.state).sort()))
-      .catch(() => setStates([]));
+    fetch('/api/states').then(r => r.json()).then(j => { setStates(j || []); if (j && j.length) setSel(j[0].state); }).catch(() => setStates([]));
   }, []);
 
   useEffect(() => {
-    if (!selected) return;
-    fetch(`/api/state/${encodeURIComponent(selected)}/districts`)
-      .then((r) => r.json())
-      .then((rows) => {
-        // For live monitoring chart, pick three fields and show a line (per district)
-        setDistricts(rows || []);
-      })
-      .catch(() => setDistricts([]));
-  }, [selected]);
-
-  // Prepare three-series line for live-monitoring (exclude Extraction(Total), use Unconfined aquifer etc if available)
-  const seriesKeys = [
-    "Annual Extractable Ground water Resource (ham)_C",
-    "Net Annual Ground Water Availability for Future Use (ham)_C",
-    "Total Ground Water Availability in the area (ham)_Fresh",
-  ];
-
-  const plotData = seriesKeys.map((k, i) => ({
-    x: districts.map((d) => d.district),
-    y: districts.map((d) => d[k] || 0),
-    mode: "lines+markers",
-    name:
-      k === seriesKeys[0]
-        ? "Annual Extractable"
-        : k === seriesKeys[1]
-        ? "Net Annual Available"
-        : "Total Availability",
-  }));
+    if (!sel) return;
+    fetch(`/api/state/${encodeURIComponent(sel)}`)
+      .then(r => r.json())
+      .then(j => setData(j))
+      .catch(() => setData(null));
+  }, [sel]);
 
   return (
-    <div className="live-page">
-      <div className="page-header">
-        <h2>Live Monitoring Data</h2>
-        <div className="controls">
-          <select value={selected} onChange={(e) => setSelected(e.target.value)}>
-            <option value="">-- select state --</option>
-            {states.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-          <button onClick={() => { if (selected) { /* refresh trigger */ setSelected(selected); } }}>Refresh</button>
-          <span className="muted"> Hover points for details</span>
-        </div>
-      </div>
+    <div className="page">
+      <h2>Live Monitoring Data</h2>
+      <div className="card">
+        <label>State</label>
+        <select value={sel} onChange={(e) => setSel(e.target.value)}>
+          {states.map(s => <option key={s.state} value={s.state}>{s.state}</option>)}
+        </select>
 
-      <div className="card fullwidth">
-        {districts.length ? (
-          <Plot
-            data={plotData}
-            layout={{
-              height: 420,
-              margin: { t: 30, r: 20, l: 60, b: 140 },
-              xaxis: { tickangle: -50 },
-            }}
-            config={{ displayModeBar: true }}
-            style={{ width: "100%" }}
-          />
-        ) : (
-          <div style={{ padding: 40 }}>Select a state to show live monitoring trends.</div>
-        )}
+        <div style={{ marginTop: 16 }}>
+          <h4>Trends for {sel}</h4>
+          <pre>{data ? JSON.stringify(data, null, 2) : 'Select a state to load trends.'}</pre>
+        </div>
       </div>
     </div>
   );

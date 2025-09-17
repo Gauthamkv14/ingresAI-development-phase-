@@ -1,11 +1,14 @@
-import React from "react";
-import ChatInterface from "../components/ChatInterface";
+// src/pages/ChatPage.jsx
+import React from 'react';
+import Chatbot from '../components/Chatbot.jsx';
 
 export default function ChatPage() {
   return (
-    <div className="card" style={{ minHeight: 600 }}>
+    <div className="page">
       <h2>AI Chat</h2>
-      <ChatInterface />
+      <div className="card">
+        <Chatbot />
+      </div>
     </div>
   );
 }

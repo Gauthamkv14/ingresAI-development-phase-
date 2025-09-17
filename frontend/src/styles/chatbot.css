@@ -1,0 +1,11 @@
+.chatbot-root { display:flex;flex-direction:column;height:100%;background:var(--card-bg); }
+.messages { flex:1;padding:10px; overflow:auto; display:flex;flex-direction:column; gap:8px; }
+.msg { max-width:85%; padding:8px 10px; border-radius:10px; }
+.msg.bot { align-self:flex-start; background: rgba(0,0,0,0.05); }
+.msg.user { align-self:flex-end; background: linear-gradient(90deg,#7a3cff,#ff5ee1); color:white; }
+.msg-text { white-space:pre-wrap; }
+.composer { display:flex; gap:8px; padding:8px; border-top:1px solid rgba(0,0,0,0.06); }
+.composer input { flex:1; padding:10px;border-radius:8px;border:1px solid rgba(0,0,0,0.08); }
+.composer button { padding:8px 12px;border-radius:8px;background:#6b46ff;color:white;border:none;cursor:pointer; }
+html.dark .msg.bot { background: rgba(255,255,255,0.03); }
+html.dark .composer input { background:#111218;color:#e6edf3;border:1px solid rgba(255,255,255,0.03); }

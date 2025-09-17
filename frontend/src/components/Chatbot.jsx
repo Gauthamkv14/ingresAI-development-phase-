@@ -1,9 +1,9 @@
-// src/components/Chatbot.js
+// src/components/Chatbot.jsx
 import React, { useState } from 'react';
 import '../styles/chatbot.css';
 
 export default function Chatbot({ onClose }) {
-  const [messages, setMessages] = useState([{ from: 'bot', text: "Hello — ask me for a state's groundwater data (e.g. 'Show me Karnataka groundwater data'), or compare two states." }]);
+  const [messages, setMessages] = useState([{ from: 'bot', text: "Hello — ask me for a state's groundwater data, e.g. 'Show me Karnataka groundwater data'." }]);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
 
@@ -39,7 +39,7 @@ export default function Chatbot({ onClose }) {
       <div className="chat-history">
         {messages.map((m, i) => (
           <div key={i} className={`chat-msg ${m.from}`}>
-            <div className="chat-text">{m.text}</div>
+            <div className="chat-text" style={{ whiteSpace: 'pre-wrap' }}>{m.text}</div>
           </div>
         ))}
       </div>
