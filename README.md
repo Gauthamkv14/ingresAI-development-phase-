@@ -53,7 +53,6 @@ From root, using 2 terminals run:
 - Frontend: http://localhost:3000
 - API: http://localhost:8000
 - Health Check: http://localhost:8000/health
-- 
 
 ## 📋 Required API Keys & Configuration
 
@@ -76,27 +75,6 @@ From root, using 2 terminals run:
 GROUNDWATER_LEVELS_RESOURCE_ID=actual_resource_id
 WATER_QUALITY_RESOURCE_ID=actual_resource_id
 RESOURCE_ASSESSMENT_RESOURCE_ID=actual_resource_id
-
-
-## 🏗️ Project Structure
-ingres-mcp-chatbot/
-├── backend/ # Python MCP Server
-│ ├── mcp_server.py # Main MCP server
-│ ├── api_bridge.py # FastAPI bridge for frontend
-│ ├── tools/ # MCP tools
-│ ├── database/ # Database models
-│ └── requirements.txt # Python dependencies
-├── frontend/ # React Frontend
-│ ├── src/
-│ │ ├── components/ # React components
-│ │ ├── contexts/ # React contexts
-│ │ ├── hooks/ # Custom hooks
-│ │ └── utils/ # Utilities
-│ └── package.json # Node dependencies
-├── database/
-│ └── init.sql # Database initialization
-├── data/ # Processed data & mode
-└── .env # Environment variables
 
 
 ## 🧪 Testing
