@@ -1,4 +1,4 @@
-# 🌊 INGRES MCP Chatbot - SIH 2025
+# 🌊 INGRES Chatbot - SIH 2025
 
 AI-Driven Chatbot for INGRES (India Groundwater Resource Estimation System) as Virtual Assistant
 
@@ -7,35 +7,53 @@ AI-Driven Chatbot for INGRES (India Groundwater Resource Estimation System) as V
 ### Prerequisites
 - Python 3.11+
 - Node.js 18+
-- Docker & Docker Compose (recommended)
-- PostgreSQL with PostGIS (if not using Docker)
 
-### 1. Clone & Setup
+### 1. Clone 
 git clone <your-repo-url>
-cd ingres-mcp-chatbot
-chmod +x setup.sh
-./setup.sh
 
 ### 2. Configure Environment
 Edit `.env` file with your API keys:
 DATA_GOV_API_KEY=your_api_key_here
 OPENAI_API_KEY=your_openai_key_here
-GOOGLE_TRANSLATE_API_KEY=your_translate_key_here
 
+### 3. Backend Setup
+cd backend
+# create virtual environment
+python -m venv venv
+.\venv\Scripts\activate   # (Windows PowerShell)
+# or
+source venv/bin/activate  # (Linux/macOS)
+# upgrade pip/setuptools
+python -m pip install --upgrade pip setuptools wheel build
+# install deps
+pip install -r requirements.txt
 
-### 3. Start Application
-Option A: Docker (Recommended)
-./start_all_docker.sh
-Option B: Manual
-./start_backend.sh # Terminal 1
-./start_api_bridge.sh # Terminal 2
-./start_frontend.sh # Terminal 3
+### 4. Frontend Setup
+cd ../frontend
+# ensure Node 18 is active
+node -v   # should be v18.20.x
+npm -v    # should be 9.x
+# clean old installs (if any)
+rm -rf node_modules package-lock.json
+npm cache clean --force
+# install deps
+npm install
 
+### 5. Start Application
+From root, using 2 terminals run:
+1. For backend
+-cd backend
+-uvicorn mcp_server:app --host 0.0.0.0 --port 8000 --reload
+
+2. For frontend
+-cd frontend
+-npm start
 
 ### 4. Access Application
 - Frontend: http://localhost:3000
 - API: http://localhost:8000
 - Health Check: http://localhost:8000/health
+- 
 
 ## 📋 Required API Keys & Configuration
 
@@ -51,13 +69,7 @@ Option B: Manual
 3. Generate API key
 4. Add to `.env` as `OPENAI_API_KEY`
 
-### 3. Google Translate API (Optional)
-1. Visit Google Cloud Console
-2. Enable Translation API
-3. Create credentials
-4. Add to `.env` as `GOOGLE_TRANSLATE_API_KEY`
-
-### 4. Find Resource IDs
+### 3. Find Resource IDs
 1. Search data.gov.in for groundwater datasets
 2. Copy resource IDs from dataset URLs
 3. Add to `.env` file:
@@ -72,7 +84,6 @@ ingres-mcp-chatbot/
 │ ├── mcp_server.py # Main MCP server
 │ ├── api_bridge.py # FastAPI bridge for frontend
 │ ├── tools/ # MCP tools
-│ ├── rag/ # RAG implementation
 │ ├── database/ # Database models
 │ └── requirements.txt # Python dependencies
 ├── frontend/ # React Frontend
@@ -84,31 +95,9 @@ ingres-mcp-chatbot/
 │ └── package.json # Node dependencies
 ├── database/
 │ └── init.sql # Database initialization
-├── uploads/ # File uploads
-├── data/ # Processed data & models
-├── docker-compose.yml # Docker services
+├── data/ # Processed data & mode
 └── .env # Environment variables
 
-
-## 🔧 Features
-
-### Core Functionality
-- ✅ Natural language Q&A over INGRES data
-- ✅ Real-time groundwater data fetching
-- ✅ Interactive data visualizations
-- ✅ CSV file upload and processing
-- ✅ Multi-language support (9 Indian languages)
-- ✅ ML-based water level predictions
-- ✅ Citation system for data transparency
-
-### Technical Features
-- ✅ MCP (Model Context Protocol) architecture
-- ✅ RAG (Retrieval Augmented Generation)
-- ✅ PostGIS spatial database
-- ✅ Redis caching
-- ✅ Docker containerization
-- ✅ Session management
-- ✅ File upload/download
 
 ## 🧪 Testing
 
@@ -123,54 +112,13 @@ cd frontend
 npm test
 
 
-## 🚢 Deployment
-
-### Docker Production
-docker-compose -f docker-compose.prod.yml up -d
-
-
-### Manual Production
-1. Set `ENVIRONMENT=production` in `.env`
-2. Build frontend: `cd frontend && npm run build`
-3. Start with production settings
-
 ## 📊 API Documentation
-
-### MCP Tools Available
-- `get_groundwater_levels` - Fetch groundwater data
-- `get_resource_assessment` - Get state assessments
-- `search_comprehensive_data` - Natural language search
-- `rag_query` - Chat with AI assistant
-- `predict_water_levels` - ML predictions
-- `create_interactive_chart` - Generate visualizations
-- `upload_csv_data` - File upload processing
-- `translate_text` - Multi-language support
 
 ### REST API Endpoints
 - `GET /health` - Health check
-- `POST /api/mcp/call-tool` - Call MCP tools
-- `POST /api/upload` - File upload
 - `GET /api/files` - List files
 - `GET /api/groundwater` - Get groundwater data
 
-## 🛠️ Development
-
-### Backend Development
-cd backend
-source venv/bin/activate
-python mcp_server.py
-
-
-### Frontend Development
-cd frontend
-npm start
-
-
-### Add New MCP Tool
-1. Create tool in `backend/tools/`
-2. Register in `mcp_server.py`
-3. Add frontend integration
-4. Update documentation
 
 ## 🔍 Troubleshooting
 
@@ -185,16 +133,6 @@ npm start
 - Verify API keys in `.env` file
 - Check API key permissions and quotas
 - Test API endpoints manually
-
-**File Upload Issues**
-- Check file size limits (10MB default)
-- Verify upload directory permissions
-- Ensure CSV format compliance
-
-**MCP Server Not Starting**
-- Check Python version (3.11+ required)
-- Verify all dependencies installed
-- Check log files in `logs/` directory
 
 ### Getting Help
 1. Check logs in `logs/` directory
@@ -218,8 +156,7 @@ Team GroundZero - AI-Driven Chatbot for INGRES for SIH 25
 
 ## 📞 Support & Contact
 
-- **Email:** gauthamkv14@gmail.com
-- **Documentation:** [Wiki](../../wiki)
+- **Email:** 1ds23is051.dsce.edu.in
 
 ---
 
